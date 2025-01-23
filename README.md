@@ -1,1 +1,1 @@
-# costus-genetic-mapping
+# Costus Genetic Mapping
