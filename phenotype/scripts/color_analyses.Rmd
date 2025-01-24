@@ -1,0 +1,488 @@
+---
+title: "Color Analysis of Floral Tissues"
+author: "K. Uckele"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+---
+
+# Introduction
+
+This analysis explores the color properties of different floral tissues — bract, petal, and labellum — using spectral data sourced from Google Sheets. The analysis includes data loading, quality control, spectral processing, visualization, and the computation of summary descriptors.
+
+# Setup
+
+## Load Required Libraries
+```{r load-libraries}
+## libraries
+library(googlesheets4)
+library(cowplot)
+library(dplyr)
+library(tibble)
+library(knitr)
+library(rmarkdown)
+library(pavo)
+```
+
+## Set working directory
+```{r set-wd}
+# Set the root directory to the project root
+knitr::opts_knit$set(root.dir = normalizePath("../"))
+```
+
+## Define Custom Operators
+```{r custom-operators}
+# Define a 'not in' operator
+`%notin%` = Negate(`%in%`)
+```
+
+## Authenticate Google Sheets Access
+Authenticate access to Google Sheets using your email. Ensure that the email has the necessary permissions to access the sheets.
+```{r authenticate}
+# Authenticate with Google Sheets
+gs4_auth(email = "kuckele@ucsc.edu")
+```
+
+# Quality Control
+
+## Load Spectral Data from Google Sheets
+We load the spectral data for bract, petal, and labellum from the specified Google Sheets.
+```{r load-data}
+# Specify the Google Sheets ID
+sheet_id <- "12NWtlqKbLPAxU-rVBTqMQjY_6jH1DulVvNHS_QXAvFI"
+
+# Load data for different floral tissues
+bract <- read_sheet(ss = sheet_id, sheet = "Bract")
+petal <- read_sheet(ss = sheet_id, sheet = "Petal")
+labellum <- read_sheet(ss = sheet_id, sheet = "Labellum")
+```
+
+# Spectral Data Processing
+## Convert Data to rspec Objects
+The spectral data is converted into rspec objects using the pavo package for further analysis.
+```{r convert-to-rspec}
+# Set seed for reproducibility
+set.seed(1612217)
+
+# Convert datasets to rspec objects with wavelength limits
+bract_spec <- as.rspec(bract, lim = c(300, 700), whichwl = 1)
+petal_spec <- as.rspec(petal, lim = c(300, 700), whichwl = 1)
+labellum_spec <- as.rspec(labellum, lim = c(300, 700), whichwl = 1)
+
+# change column names
+colnames(bract_spec) <- gsub("-", "x", colnames(bract_spec))
+colnames(petal_spec) <- gsub("-", "x", colnames(petal_spec))
+colnames(labellum_spec) <- gsub("-", "x", colnames(labellum_spec))
+```
+Note: The conversion may produce warnings about negative values in spectral data, which are addressed in subsequent steps.
+
+## Average the Spectra
+Aggregate the spectral data by sample names, averaging replicates.
+```{r aggregate}
+# Extract sample names by removing trailing numbers in parentheses
+bract_samples <- gsub("\\([0-9]+\\)$", "", names(bract_spec))[-1]
+petal_samples <- gsub("\\([0-9]+\\)$", "", names(petal_spec))[-1]
+labellum_samples <- gsub("\\([0-9]+\\)$", "", names(labellum_spec))[-1]
+
+# Verify sample counts
+table(bract_samples)
+table(petal_samples)
+table(labellum_samples)
+
+# Aggregate spectra by sample names using mean
+bract_spec_avg <- aggspec(bract_spec, by = bract_samples, FUN = mean)
+petal_spec_avg <- aggspec(petal_spec, by = petal_samples, FUN = mean)
+labellum_spec_avg <- aggspec(labellum_spec, by = labellum_samples, FUN = mean)
+```
+
+## Fix Negative Reflectance Values
+Negative reflectance values are corrected by adding the minimum reflectance.
+
+```{r negative-values}
+# Fix negative values by adding the minimum reflectance
+bract_spec_avg <- procspec(bract_spec_avg, fixneg = "addmin")
+petal_spec_avg <- procspec(petal_spec_avg, fixneg = "addmin")
+labellum_spec_avg <- procspec(labellum_spec_avg, fixneg = "addmin")
+```
+
+## Determine Smoothing Parameter
+Use plotsmooth to visualize and decide on an appropriate smoothing span.
+```{r determine-smoothing}
+# Plot to determine suitable smoothing span
+plotsmooth(bract_spec_avg[,1:7],
+           minsmooth = 0.05,
+           maxsmooth = 0.5,
+           curves = 4,
+           ask = FALSE)
+```
+Choose a span (e.g., 0.2) based on the plot to balance smoothness and data fidelity.
+
+## Smooth the Spectral Data
+Apply smoothing to the spectral data using the chosen span.
+```{r apply-smoothing}
+# Apply smoothing with span = 0.2
+bract_spec_sm <- procspec(bract_spec_avg, opt = "smooth", span = 0.2)
+petal_spec_sm <- procspec(petal_spec_avg, opt = "smooth", span = 0.2)
+labellum_spec_sm <- procspec(labellum_spec_avg, opt = "smooth", span = 0.2)
+```
+
+## Scale the Spectral Data
+Scale the spectral data to different reference points for comparative analysis.
+```{r scale}
+# Scale spectra to both minimum and maximum reflectance
+bract_spec_scaleminmax <- procspec(bract_spec_sm, opt = c("min", "max"))
+petal_spec_scaleminmax <- procspec(petal_spec_sm, opt = c("min", "max"))
+labellum_spec_scaleminmax <- procspec(labellum_spec_sm, opt = c("min", "max"))
+```
+
+# Plot Processed Spectra
+Visualize the processed spectral data for each floral tissue, highlighting specific samples.
+
+## Define Common Plotting Parameters
+```{r define-params}
+# Define a color palette for highlighting specific samples
+highlight_colors <- c(rep("lightgrey", 170), "gold1", "gold1", "darkgreen")
+```
+
+## Bract Spectra Plot
+```{r bract-spectra}
+# Order samples to highlight specific ones
+order_spec_bract <- c(
+  which(names(bract_spec_scaleminmax) == "125"),
+  which(names(bract_spec_scaleminmax) == "126"),
+  which(names(bract_spec_scaleminmax) == "BRAC")
+)
+
+# Reorder columns to place highlighted samples at the end
+columns_bract <- 1:ncol(bract_spec_scaleminmax)
+order_spec_bract <- c(columns_bract[columns_bract %notin% order_spec_bract], order_spec_bract)
+
+# Plot the spectra
+plot(bract_spec_scaleminmax[order_spec_bract], type = "o",
+     col = highlight_colors, main = "Bract Spectra",
+     xlab = "Wavelength (nm)", ylab = "Reflectance (%)")
+
+# Add a legend
+legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
+       col = c("darkgreen", "gold1"), lty = 1, cex = 0.8)
+```
+
+## Petal Spectra Plot
+```{r petal-spectra}
+# Order samples to highlight specific ones
+order_spec_petal <- c(
+  which(names(petal_spec_scaleminmax) == "125"),
+  which(names(petal_spec_scaleminmax) == "126"),
+  which(names(petal_spec_scaleminmax) == "BRAC")
+)
+
+# Reorder columns to place highlighted samples at the end
+columns_petal <- 1:ncol(petal_spec_scaleminmax)
+order_spec_petal <- c(columns_petal[columns_petal %notin% order_spec_petal], order_spec_petal)
+
+# Plot the spectra
+plot(petal_spec_scaleminmax[order_spec_petal], type = "o",
+     col = highlight_colors, main = "Petal Spectra",
+     xlab = "Wavelength (nm)", ylab = "Reflectance (%)")
+
+# Add a legend
+legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
+       col = c("darkgreen", "gold1"), lty = 1, cex = 0.8)
+```
+
+## Labellum Spectra Plot
+```{r labellum-spectra}
+# Order samples to highlight specific ones
+order_spec_labellum <- c(
+  which(names(labellum_spec_scaleminmax) == "125"),
+  which(names(labellum_spec_scaleminmax) == "126"),
+  which(names(labellum_spec_scaleminmax) == "BRAC")
+)
+
+# Reorder columns to place highlighted samples at the end
+columns_labellum <- 1:ncol(labellum_spec_scaleminmax)
+order_spec_labellum <- c(columns_labellum[columns_labellum %notin% order_spec_labellum], order_spec_labellum)
+
+# Plot the spectra
+plot(labellum_spec_scaleminmax[order_spec_labellum], type = "o",
+     col = highlight_colors, main = "Labellum Spectra",
+     xlab = "Wavelength (nm)", ylab = "Reflectance (%)")
+
+# Add a legend
+legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
+       col = c("darkgreen", "gold1"), lty = 1, cex = 0.8)
+```
+
+## Combine and Save Spectral Plots with Highlighted Parents
+```{r save-plots}
+# Save combined spectra plots with highlighted parental samples
+pdf("./results/figures/Combined_Spectra_Bract_Petal_Labellum_Cbracteatus_Clasius_hybrids.pdf", width = 30, height = 7)
+par(mfrow = c(1, 3))
+# Increase left margin to provide more space for y-axis labels
+par(mar = c(5, 5, 4, 2) + 0.1)  # c(bottom, left, top, right)
+plot(bract_spec_scaleminmax[order_spec_bract], type = "o", col = highlight_colors, 
+     main = "Bract spectra", xlab = "Wavelength (nm)", ylab = "Reflectance (%)",
+     cex.main = 3, cex.lab = 2.5, cex.axis = 2, lwd = 2) 
+legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
+       col = c("darkgreen", "gold1"), lty = 1, cex = 2.5, bty = "n")
+plot(petal_spec_scaleminmax[order_spec_petal], type = "o", col = highlight_colors, 
+     main = "Petal spectra", xlab = "Wavelength (nm)", ylab = "Reflectance (%)",
+     cex.main = 3, cex.lab = 2.5, cex.axis = 2, lwd = 2)
+legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
+       col = c("darkgreen", "gold1"), lty = 1, cex = 2.5, bty = "n")
+plot(labellum_spec_scaleminmax[order_spec_labellum], type = "o", col = highlight_colors, 
+     main = "Labellum spectra", xlab = "Wavelength (nm)", ylab = "Reflectance (%)",
+     cex.main = 3, cex.lab = 2.5, cex.axis = 2, lwd = 2)
+legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
+       col = c("darkgreen", "gold1"), lty = 1, cex = 2.5, bty = "n")
+dev.off()
+```
+
+# Spectral Descriptors
+We compute various spectral descriptors to quantify the color properties of the floral tissues.
+
+## Define spectral descriptors
+B1: Total brightness
+B2: Mean brightness
+B3: Intensity (Rmax)
+S1U to S1R: Relative contributions of UV, Violet, Blue, Green, Yellow, and Red spectral ranges to total brightness
+S2: Spectral saturation (Rmax/Rmin)
+S3: Chroma
+S4: Spectral purity
+S5: Chroma
+S6: Contrast (Rmax - Rmin)
+S7: Spectral saturation
+S8: Chroma ((Rmax - Rmin)/B2)
+S9: Carotenoid chroma ((R700 - R450)/R700)
+S10: Peaky chroma
+H1 to H5: Hue metrics (e.g., peak wavelength)
+Note: Some metrics may be sensitive to spectral noise.
+
+## Calculate Spectral Descriptors
+### Bract 
+
+```{r bract-summary}
+# Calculate spectral descriptors for bract
+summary_bract <- summary(bract_spec_scaleminmax)
+
+# Remove S2 due to infinite values
+summary_bract <- summary_bract %>% select(-S2)
+
+# Extract metrics for parents
+bract125 <- round(summary_bract["125", ], 3)
+bract126 <- round(summary_bract["126", ], 3)
+bractBRAC <- round(summary_bract["BRAC", ], 3)
+```
+
+### Plot Bract Spectral Descriptors Histograms
+```{r plot-bract-hist}
+
+pdf("./results/figures/bract_descriptors_histograms.pdf", width = 14, height = 10)
+
+# Set up plotting area: 4 rows x 6 columns for histograms
+par(mfrow = c(4, 6),        # 4 rows, 6 columns
+    mar = c(5, 5, 4, 2) + 0.1,  # Margins for each plot: bottom, left, top, right
+    oma = c(0, 0, 0, 5))    # Outer margins: bottom, left, top, right
+
+# Loop through each metric and plot histogram with parental lines
+for (i in 1:ncol(summary_bract)) {
+  hist(summary_bract[, i], 
+       xlab = colnames(summary_bract)[i], 
+       main = colnames(summary_bract)[i],
+       col = "lightgrey", 
+       border = "white")
+  
+  # Add vertical lines for parental samples
+  abline(v = bract125[i], col = 'gold1', lwd = 3)      # C. lasius parent
+  abline(v = bract126[i], col = 'gold1', lwd = 3)      # C. lasius parent
+  abline(v = bractBRAC[i], col = 'darkgreen', lwd = 3) # C. bracteatus parent
+}
+
+# Allow drawing in the outer margin
+par(xpd = TRUE)
+
+plot.new()
+
+# Add a shared legend in the outer right margin
+legend("topright",
+       inset = c(0, 0),  # Adjusts the position of the legend
+       legend = c("C. lasius parent", "C. bracteatus parent"),
+       col = c("gold1", "darkgreen"),
+       lty = 1,              # Line type: solid
+       lwd = 3,              # Line width
+       cex = 1.5,            # Text size
+       bty = "n")            # No box around the legend
+
+# Close the PDF device to save the file
+dev.off()
+```
+
+### Petal Summary
+```{r petal-summary}
+# Calculate summary statistics for petal
+summary_petal <- summary(petal_spec_scaleminmax)
+
+# Remove S2 due to infinite values
+summary_petal <- summary_petal %>% select(-S2)
+
+# Extract metrics for specific samples
+petal125 <- round(summary_petal["125", ], 3)
+petal126 <- round(summary_petal["126", ], 3)
+petalBRAC <- round(summary_petal["BRAC", ], 3)
+```
+
+### Plot Petal Spectral Descriptors Histograms
+```{r plot-petal-hist}
+pdf("./results/figures/petal_descriptors_histograms.pdf", width = 14, height = 10)
+
+# Set up plotting area: 4 rows x 6 columns for histograms
+par(mfrow = c(4, 6),        # 4 rows, 6 columns
+    mar = c(5, 5, 4, 2) + 0.1,  # Margins for each plot: bottom, left, top, right
+    oma = c(0, 0, 0, 5))    # Outer margins: bottom, left, top, right
+
+# Loop through each metric and plot histogram with parental lines
+for (i in 1:ncol(summary_petal)) {
+  hist(summary_petal[, i], 
+       xlab = colnames(summary_petal)[i], 
+       main = colnames(summary_petal)[i],
+       col = "lightgrey", 
+       border = "white")
+  
+  # Add vertical lines for parental samples
+  abline(v = petal125[i], col = 'gold1', lwd = 3)      # C. lasius parent
+  abline(v = petal126[i], col = 'gold1', lwd = 3)      # C. lasius parent
+  abline(v = petalBRAC[i], col = 'darkgreen', lwd = 3) # C. bracteatus parent
+}
+
+# Allow drawing in the outer margin
+par(xpd = TRUE)
+
+plot.new()
+
+# Add a shared legend in the outer right margin
+legend("topright",
+       inset = c(0, 0),  # Adjusts the position of the legend
+       legend = c("C. lasius parent", "C. bracteatus parent"),
+       col = c("gold1", "darkgreen"),
+       lty = 1,              # Line type: solid
+       lwd = 3,              # Line width
+       cex = 1.5,            # Text size
+       bty = "n")            # No box around the legend
+
+# Close the PDF device to save the file
+dev.off()
+```
+
+### Labellum Summary
+```{r labellum-summary}
+# Calculate summary statistics for labellum
+summary_labellum <- summary(labellum_spec_scaleminmax)
+
+# Remove S2 due to infinite values
+summary_labellum <- summary_labellum %>% select(-S2)
+
+# Extract metrics for specific samples
+labellum125 <- round(summary_labellum["125", ], 3)
+labellum126 <- round(summary_labellum["126", ], 3)
+labellumBRAC <- round(summary_labellum["BRAC", ], 3)
+```
+
+### Plot Labellum Spectral Descriptors Histograms
+```{r plot-labellum-hist}
+pdf("./results/figures/labellum_descriptors_histograms.pdf", width = 14, height = 10)
+
+# Set up plotting area: 4 rows x 6 columns for histograms
+par(mfrow = c(4, 6),        # 4 rows, 6 columns
+    mar = c(5, 5, 4, 2) + 0.1,  # Margins for each plot: bottom, left, top, right
+    oma = c(0, 0, 0, 5))    # Outer margins: bottom, left, top, right
+
+# Loop through each metric and plot histogram with parental lines
+for (i in 1:ncol(summary_labellum)) {
+  hist(summary_labellum[, i], 
+       xlab = colnames(summary_labellum)[i], 
+       main = colnames(summary_labellum)[i],
+       col = "lightgrey", 
+       border = "white")
+  
+  # Add vertical lines for parental samples
+  abline(v = labellum125[i], col = 'gold1', lwd = 3)      # C. lasius parent
+  abline(v = labellum126[i], col = 'gold1', lwd = 3)      # C. lasius parent
+  abline(v = labellumBRAC[i], col = 'darkgreen', lwd = 3) # C. bracteatus parent
+}
+
+# Allow drawing in the outer margin
+par(xpd = TRUE)
+
+plot.new()
+
+# Add a shared legend in the outer right margin
+legend("topright",
+       inset = c(0, 0),  # Adjusts the position of the legend
+       legend = c("C. lasius parent", "C. bracteatus parent"),
+       col = c("gold1", "darkgreen"),
+       lty = 1,              # Line type: solid
+       lwd = 3,              # Line width
+       cex = 1.5,            # Text size
+       bty = "n")            # No box around the legend
+
+# Close the PDF device to save the file
+dev.off()
+```
+
+# Data Formatting and Export
+## Reformat Rownames
+Replace 'x' with '_' in row names for consistency.
+```{r }
+# Replace 'x' with '_' in row names
+rownames(summary_bract) <- gsub("x", "_", rownames(summary_bract))
+rownames(summary_petal) <- gsub("x", "_", rownames(summary_petal))
+rownames(summary_labellum) <- gsub("x", "_", rownames(summary_labellum))
+```
+
+## Subset and Rename Columns
+Select relevant metrics and rename columns to indicate their corresponding floral tissue.
+```{r select-rename}
+# Subset relevant columns based on analysis needs
+summary_bract <- summary_bract[, c("S1U", "S1V", "S1B", "S1G", "S1R", "S5", "H4")]
+summary_petal <- summary_petal[, c("B3", "S1U", "S1V", "S1B", "S1Y", "S1R", "S5", "H4")]
+summary_labellum <- summary_labellum[, c("B3", "S1B", "S1Y", "S1R", "S5", "S6", "H3", "H4")]
+
+# Rename columns to include tissue type
+colnames(summary_bract) <- c("S1U_bract", "S1V_bract", "S1B_bract", "S1G_bract", 
+                             "S1R_bract", "S5_bract", "H4_bract")
+colnames(summary_petal) <- c("B3_petal", "S1U_petal", "S1V_petal", "S1B_petal", 
+                             "S1Y_petal", "S1R_petal", "S5_petal", "H4_petal")
+colnames(summary_labellum) <- c("B3_labellum", "S1B_labellum", "S1Y_labellum", 
+                                "S1R_labellum", "S5_labellum", "S6_labellum", 
+                                "H3_labellum", "H4_labellum")
+```
+
+## Convert Rownames to a Column
+Add the row names as a new column id to facilitate merging.
+```{r convert}
+# Convert row names to a column named 'id'
+summary_bract <- summary_bract %>% rownames_to_column(var = "id")
+summary_petal <- summary_petal %>% rownames_to_column(var = "id")
+summary_labellum <- summary_labellum %>% rownames_to_column(var = "id")
+```
+
+## Merge Summary Dataframes
+Combine the summary dataframes for bract, petal, and labellum into a single dataframe.
+```{r merge}
+# Merge bract and petal summaries by 'id'
+joined_df <- summary_bract %>%
+  full_join(summary_petal, by = "id") %>%
+  full_join(summary_labellum, by = "id")
+```
+
+## Export Summary Descriptors to CSV
+Save the combined summary descriptors to a CSV file for further analysis or reporting.
+```{r export}
+# Write the combined summary dataframe to a CSV file
+write.csv(joined_df, "./results/processed_data/spectral_shape_descriptors.csv", 
+          quote = FALSE, row.names = FALSE)
+```
+
