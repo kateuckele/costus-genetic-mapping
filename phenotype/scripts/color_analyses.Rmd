@@ -3,6 +3,9 @@ title: "Color Analysis of Floral Tissues"
 author: "K. Uckele"
 date: "`r Sys.Date()`"
 output:
+  pdf_document:
+    toc: true
+    toc_depth: '3'
   html_document:
     toc: true
     toc_depth: 3
