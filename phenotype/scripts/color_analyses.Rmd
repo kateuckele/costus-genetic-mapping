@@ -449,18 +449,18 @@ rownames(summary_labellum) <- gsub("x", "_", rownames(summary_labellum))
 Select relevant metrics and rename columns to indicate their corresponding floral tissue.
 ```{r select-rename}
 # Subset relevant columns based on analysis needs
-summary_bract <- summary_bract[, c("S1U", "S1V", "S1B", "S1G", "S1R", "S5", "H4")]
-summary_petal <- summary_petal[, c("B3", "S1U", "S1V", "S1B", "S1Y", "S1R", "S5", "H4")]
-summary_labellum <- summary_labellum[, c("B3", "S1B", "S1Y", "S1R", "S5", "S6", "H3", "H4")]
+summary_bract <- summary_bract[, c("S1U", "S1V", "S1B", "S1G", "S1R", "S5", "S9", "H4")]
+summary_petal <- summary_petal[, c("B3", "S1U", "S1V", "S1B", "S1Y", "S1R", "S5", "S9", "H4")]
+summary_labellum <- summary_labellum[, c("B3", "S1B", "S1Y", "S1R", "S5", "S6", "S9", "H3", "H4")]
 
 # Rename columns to include tissue type
 colnames(summary_bract) <- c("S1U_bract", "S1V_bract", "S1B_bract", "S1G_bract", 
-                             "S1R_bract", "S5_bract", "H4_bract")
+                             "S1R_bract", "S5_bract", "S9_bract", "H4_bract")
 colnames(summary_petal) <- c("B3_petal", "S1U_petal", "S1V_petal", "S1B_petal", 
-                             "S1Y_petal", "S1R_petal", "S5_petal", "H4_petal")
+                             "S1Y_petal", "S1R_petal", "S5_petal", "S9_bract", "H4_petal")
 colnames(summary_labellum) <- c("B3_labellum", "S1B_labellum", "S1Y_labellum", 
                                 "S1R_labellum", "S5_labellum", "S6_labellum", 
-                                "H3_labellum", "H4_labellum")
+                                "S9_bract", "H3_labellum", "H4_labellum")
 ```
 
 ## Convert Rownames to a Column
