@@ -1,0 +1,518 @@
+---
+title: "phenotypes"
+output: pdf_document
+date: "2023-10-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Cleaning Phenotypes
+### K. Uckele October 10, 2023
+
+```{r libraries, echo=FALSE}
+library(googlesheets4)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(EnvStats)
+library(stringr)
+```
+
+# Red area (nectar guide data)
+## Load and filter data
+```{r load red area}
+redarea <- read_sheet(ss="19XHi3K57mDi2BpMPrlNOR2w16VSwV0YP6WYKYJHvuqs", sheet="red_area")
+
+#make a new column that makes a unique ID for each plant
+redarea <- mutate(redarea, unique_ID = paste0(plant_type, "_", ID))
+
+#exclude columns we don't need
+redarea <- redarea %>% dplyr::select(-date, -photo_set, -plant_type, -ID, -labellum_photo, -stamen_photo)
+
+#rename columns
+redarea <- redarea %>% dplyr::rename("RALA" = "red_labellum",
+                                   "RAST" = "red_stamen")
+
+#take a quick look at data frame
+redarea
+```
+## Collapse the replicate observations
+```{r red area collapse reps}
+#First, make a function to calculate the mode of categorical variables
+#this function will output NA if there is a tie
+Modes <- function(x) {
+  ux <- unique(na.omit(x))
+  tab <- tabulate(match(x, ux))
+  if(sum(tab == max(tab)) == 2) {NA} 
+  else {ux[tab == max(tab)]}
+}
+
+#collapse the replicates by taking means
+#first take the mean of continuous data
+redarea_by_ID <- redarea %>% group_by(unique_ID) %>% reframe(
+  tibble(
+    across(where(is.double), \(x) mean(x, na.rm = TRUE)),
+    across(where(is.character), Modes),
+    across(where(is.factor), Modes)
+  )
+)
+```
+
+## Identify potential outliers 
+```{r potential outliers red area}
+## Boxplot of red labellum
+ggplot(redarea_by_ID) +
+  aes(x = "", y = RALA) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+## Identify potential outliers using the IQR criterion
+# print outlier values
+sort(boxplot.stats(redarea_by_ID$RALA)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(redarea_by_ID$RALA, k=length(boxplot.stats(redarea_by_ID$RALA)$out))
+#no outliers detected
+
+## Boxplot of red stamen
+ggplot(redarea_by_ID) +
+  aes(x = "", y = RAST) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+boxplot.stats(redarea_by_ID$RAST)$out
+#Rosner test
+rosnerTest(redarea_by_ID$RAST, k=length(boxplot.stats(redarea_by_ID$RAST)$out))
+#two outliers detected
+## Remove outliers
+redarea_by_ID <- redarea_by_ID %>%
+  mutate(RAST = na_if(RAST, 43.800)) %>%
+  mutate(RAST = na_if(RAST, 19.933))
+```
+
+# Inflorescence-level data
+## Load and filter data
+```{r load inflorescence}
+#get access to google sheets
+gs4_auth(email = "kuckele@ucsc.edu")
+#read in the tab of interest and convert it to a commonly named df
+inflor <- read_sheet(ss="19XHi3K57mDi2BpMPrlNOR2w16VSwV0YP6WYKYJHvuqs", sheet="inflorescences")
+
+#make a new column that makes a unique ID for each plant
+inflor <- mutate(inflor, unique_ID = paste0(plant_type, "_", ID))
+
+#exclude columns we don't need
+inflor <- inflor %>% dplyr::select(-date, -rep, -plant_type, -ID, -typeID)
+
+#make sure categorical variables are factors
+inflor$visible_EFnectar <- as.factor(inflor$visible_EFnectar)
+inflor$visible_guides <- as.factor(inflor$visible_guides)
+
+#rename columns
+inflor <- inflor %>% dplyr::rename("INFA" = "infl_angle",
+                                   "VEFN" = "visible_EFnectar",
+                                   "CAL" = "callus_length",
+                                   "VNG" = "visible_guides")
+
+#take a quick look at data frame
+inflor
+```
+## Collapse the replicate observations
+```{r inflor collapse reps}
+#collapse the replicates by taking means and modes
+#take the mean of continuous data and the mode of the factors and characters
+inflor_by_ID <- inflor %>% group_by(unique_ID) %>% reframe(
+  tibble(
+    across(where(is.double), \(x) mean(x, na.rm = TRUE)),
+    across(where(is.character), Modes),
+    across(where(is.factor), Modes)
+  )
+)
+```
+
+## Fill in VNG based on red area data
+```{r impute VNG}
+# Join the two data frames by the unique_ID column
+inflor_by_ID <- inflor_by_ID %>%
+  left_join(redarea_by_ID, by = "unique_ID") %>%
+  mutate(VNG = case_when(
+    is.na(VNG) & (RAST > 0 | RALA > 0) ~ factor(1, levels = c(0, 1)),
+    is.na(VNG) & RAST == 0 & RALA == 0 ~ factor(0, levels = c(0, 1)),
+    TRUE ~ VNG  # Keep the original value if the condition is not met
+  )) %>%
+  # Remove the columns from redarea_by_ID if no longer needed
+  select(-RAST, -RALA)
+```
+
+## Identify potential outliers
+```{r inflor outliers}
+## Boxplot of inflorescence angle
+ggplot(inflor_by_ID) +
+  aes(x = "", y = INFA) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values based on IQR criterion
+sort(boxplot.stats(inflor_by_ID$INFA)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(inflor_by_ID$INFA, k=length(boxplot.stats(inflor_by_ID$INFA)$out))
+#no outliers detected based on Rosner test
+
+## Boxplot of callus length
+ggplot(inflor_by_ID) +
+  aes(x = "", y = CAL) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values based on IQR criterion
+boxplot.stats(inflor_by_ID$CAL)$out
+#Rosner test
+rosnerTest(inflor_by_ID$CAL, k=length(boxplot.stats(inflor_by_ID$CAL)$out))
+#no outliers detected based on Rosner test
+```
+
+# Flower morphology data
+## Load and filter data
+```{r load flower morph}
+flo_morph <- read_sheet(ss="19XHi3K57mDi2BpMPrlNOR2w16VSwV0YP6WYKYJHvuqs", sheet="flower_morphology")
+
+#make a new column that makes a unique ID for each plant
+flo_morph <- mutate(flo_morph, unique_ID = paste0(plant_type, "_", ID))
+
+#exclude columns we don't need
+flo_morph <- flo_morph %>% dplyr::select(-date, -plant_type, -ID, -rep)
+
+#rename columns
+flo_morph <- flo_morph %>% dplyr::rename("COL" = "Corolla_Length",
+                                   "COLL" = "Corolla_Lobe_Length",
+                                   "STAE" = "Stamen_exsertion",
+                                   "TUA" = "tube_angle",
+                                   "STATL" = "stamen_tip",
+                                   "LABL" = "Labellum_Length",
+                                   "LABW" = "Labellum_Width",
+                                   "CLL" = "Labellum_lobe",
+                                   "STAL" = "Stamen_Length",
+                                   "STAW" = "Stamen_width",
+                                   "ANL" = "Anther_Length",
+                                   "ANW" = "Anther_width",
+                                   "STIW" = "Stigma_Width",
+                                   "STYL" = "Style_length")
+
+#quick look at data
+flo_morph
+```
+## Collapse the replicate observations
+```{r flower morph collapse reps}
+flo_morph_by_ID <- flo_morph %>% group_by(unique_ID) %>% reframe(
+  tibble(
+    across(where(is.double), \(x) mean(x, na.rm = TRUE)),
+    across(where(is.character), Modes),
+    across(where(is.factor), Modes)
+  )
+)
+```
+
+## Identify potential outliers 
+```{r potential outliers flower morph}
+## Corolla Length
+ggplot(flo_morph_by_ID) +
+  aes(x = "", y = COL) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(flo_morph_by_ID$COL)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(flo_morph_by_ID$COL, k=length(boxplot.stats(flo_morph_by_ID$COL)$out))
+#one outlier detected
+## Remove outliers
+flo_morph_by_ID <- flo_morph_by_ID %>%
+  mutate(COL = na_if(COL, 27.2))
+
+## Corolla_Lobe_Length
+ggplot(flo_morph_by_ID) +
+  aes(x = "", y = COLL) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(flo_morph_by_ID$COLL)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(flo_morph_by_ID$COLL, k=length(boxplot.stats(flo_morph_by_ID$COLL)$out))
+#no outliers detected
+
+## Stamen_exsertion
+ggplot(flo_morph_by_ID) +
+  aes(x = "", y = STAE) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(flo_morph_by_ID$STAE)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(flo_morph_by_ID$STAE, k=length(boxplot.stats(flo_morph_by_ID$STAE)$out))
+#no outliers detected
+
+## tube_angle
+ggplot(flo_morph_by_ID) +
+  aes(x = "", y = TUA) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(flo_morph_by_ID$TUA)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(flo_morph_by_ID$TUA, k=length(boxplot.stats(flo_morph_by_ID$TUA)$out))
+#three outliers detected
+## Remove outliers
+flo_morph_by_ID <- flo_morph_by_ID %>%
+  mutate(TUA = round(TUA, digits=0)) %>%
+  mutate(TUA = na_if(TUA, 43)) %>%
+  mutate(TUA = na_if(TUA, 0))
+
+## stamen_tip
+ggplot(flo_morph_by_ID) +
+  aes(x = "", y = STATL) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(flo_morph_by_ID$STATL)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(flo_morph_by_ID$STATL, k=length(boxplot.stats(flo_morph_by_ID$STATL)$out))
+#no outliers detected
+
+## Labellum_Length
+ggplot(flo_morph_by_ID) +
+  aes(x = "", y = LABL) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(flo_morph_by_ID$LABL)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(flo_morph_by_ID$LABL, k=length(boxplot.stats(flo_morph_by_ID$LABL)$out))
+#no outliers detected
+
+## Labellum_Width
+ggplot(flo_morph_by_ID) +
+  aes(x = "", y = LABW) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# no outliers detected
+
+## Labellum_lobe
+ggplot(flo_morph_by_ID) +
+  aes(x = "", y = CLL) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(flo_morph_by_ID$CLL)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(flo_morph_by_ID$CLL, k=length(boxplot.stats(flo_morph_by_ID$CLL)$out))
+#one outlier detected
+## Remove outliers
+flo_morph_by_ID <- flo_morph_by_ID %>%
+  mutate(CLL = na_if(CLL, 12.4)) 
+
+## Stamen_Length
+ggplot(flo_morph_by_ID) +
+  aes(x = "", y = STAL) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(flo_morph_by_ID$STAL)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(flo_morph_by_ID$STAL, k=length(boxplot.stats(flo_morph_by_ID$STAL)$out))
+#no outliers detected
+
+## Stamen_width
+ggplot(flo_morph_by_ID) +
+  aes(x = "", y = STAW) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(flo_morph_by_ID$STAW)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(flo_morph_by_ID$STAW, k=length(boxplot.stats(flo_morph_by_ID$STAW)$out))
+#one outlier detected
+## Remove outlier
+flo_morph_by_ID <- flo_morph_by_ID %>%
+  mutate(STAW = na_if(STAW, 5.5)) 
+ 
+## Anther_Length
+ggplot(flo_morph_by_ID) +
+  aes(x = "", y = ANL) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(flo_morph_by_ID$ANL)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(flo_morph_by_ID$ANL, k=length(boxplot.stats(flo_morph_by_ID$ANL)$out))
+#one outlier detected
+## Remove outliers
+flo_morph_by_ID <- flo_morph_by_ID %>%
+  mutate(ANL = na_if(ANL, 9.15)) 
+
+## Anther_width
+ggplot(flo_morph_by_ID) +
+  aes(x = "", y = ANW) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(flo_morph_by_ID$ANW)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(flo_morph_by_ID$ANW, k=1)
+#no outliers detected
+
+## Stigma_Width
+ggplot(flo_morph_by_ID) +
+  aes(x = "", y = STIW) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(flo_morph_by_ID$STIW)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(flo_morph_by_ID$STIW, k=length(boxplot.stats(flo_morph_by_ID$STIW)$out))
+#one outlier detected
+## Remove outliers
+flo_morph_by_ID <- flo_morph_by_ID %>%
+  mutate(STIW = na_if(STIW, 4.6)) 
+
+## Style_length
+ggplot(flo_morph_by_ID) +
+  aes(x = "", y = STYL) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(flo_morph_by_ID$STYL)$out, decreasing = TRUE)
+# no outliers detected
+```
+
+# Nectar data
+## Load and filter data
+```{r load nectar}
+nectar <- read_sheet(ss="19XHi3K57mDi2BpMPrlNOR2w16VSwV0YP6WYKYJHvuqs", sheet="nectar")
+
+#make a new column that makes a unique ID for each plant
+nectar <- mutate(nectar, unique_ID = paste0(plant_type, "_", ID))
+
+#exclude columns we don't need
+nectar <- nectar %>% dplyr::select(-year, -date, -plant_type, -ID, -rep, -fl_capsize)
+
+# EFN_percent_sucrose is dependent on EFN_H2Ovolume_uL
+# Split EFN_percent_sucrose into two different variables: 1) diluted in 40 uL or
+# 2) diluted in 50 uL (because these cannot be directly compared)
+
+nectar <- nectar %>%
+  mutate(
+    EFN_percent_sucrose_H2Ovolume_40uL = if_else(
+      EFN_H2Ovolume_uL == 40,       # Condition: Check if H2O volume is 40 µL
+      EFN_percent_sucrose,          # If TRUE: Assign the value of EFN_percent_sucrose
+      NA_real_                      # If FALSE: Assign NA (as a numeric NA)
+    ), 
+    EFN_percent_sucrose_H2Ovolume_50uL = if_else(
+      EFN_H2Ovolume_uL == 50,       # Condition: Check if H2O volume is 50 µL
+      EFN_percent_sucrose,          # If TRUE: Assign the value of EFN_percent_sucrose
+      NA_real_  
+    )
+  )
+
+#exclude columns we don't need
+# I'm removing EFN_percent_sucrose_H2Ovolume_50uL because there are not enough observations to QTL map
+nectar <- nectar %>% dplyr::select(-fl_nectarlength_mm, -fl_mg_sucrose, -EFN_H2Ovolume_uL, -EFN_percent_sucrose, -EFN_mg_sucrose, -EFN_percent_sucrose_H2Ovolume_50uL)
+
+#rename columns
+nectar <- nectar %>% dplyr::rename("VFN" = "fl_nectarvolume_uL", # volume floral nectar
+                                   "FNSC" = "fl_percent_sucrose", # percent sucrose floral nectar
+                                   "EFNSC40" = "EFN_percent_sucrose_H2Ovolume_40uL") # percent sucrose (diluted in 40 uL) EFN 
+
+#quick look at data
+nectar
+```
+
+## Collapse the replicate observations
+```{r nectar collapse reps}
+nectar_by_ID <- nectar %>% group_by(unique_ID) %>% reframe(
+  tibble(
+    across(where(is.double), \(x) mean(x, na.rm = TRUE)),
+    across(where(is.character), Modes),
+    across(where(is.factor), Modes)
+  )
+)
+```
+
+## Identify potential outliers 
+```{r potential outliers nectar}
+## fl_nectarlength_mm
+ggplot(nectar_by_ID) +
+  aes(x = "", y = VFN) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(nectar_by_ID$VFN)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(nectar_by_ID$VFN, k=length(boxplot.stats(nectar_by_ID$VFN)$out))
+#no outliers detected
+
+## fl_percent_sucrose
+ggplot(nectar_by_ID) +
+  aes(x = "", y = FNSC) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(nectar_by_ID$FNSC)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(nectar_by_ID$FNSC, k=length(boxplot.stats(nectar_by_ID$FNSC)$out))
+#three outliers detected
+## Remove outliers
+nectar_by_ID <- nectar_by_ID %>%
+  mutate(FNSC = na_if(FNSC, 0.0)) %>%
+  mutate(FNSC = na_if(FNSC, 8.5)) %>%
+  mutate(FNSC = na_if(FNSC, 12.5))
+
+## Extrafloral nectar percent sucrose (diluted in 40 uL)
+ggplot(nectar_by_ID) +
+  aes(x = "", y = EFNSC40) +
+  geom_boxplot(fill = "#0c4c8a") +
+  theme_minimal()
+# print outlier values
+sort(boxplot.stats(nectar_by_ID$EFNSC40)$out, decreasing = TRUE)
+#Rosner test
+rosnerTest(nectar_by_ID$EFNSC40, k=length(boxplot.stats(nectar_by_ID$EFNSC40)$out))
+#two outliers detected
+## Remove outliers
+nectar_by_ID <- nectar_by_ID %>%
+  mutate(EFNSC40 = round(EFNSC40, digits=2)) %>%
+  mutate(EFNSC40 = na_if(EFNSC40, 37.00000)) 
+## make sure outliers are removed
+rosnerTest(nectar_by_ID$EFNSC40, k=2)
+```
+
+# Combine and write data
+```{r combine data}
+data <- inflor_by_ID %>% 
+  full_join(redarea_by_ID, by="unique_ID") %>%
+  full_join(flo_morph_by_ID, by="unique_ID") %>%
+  full_join(nectar_by_ID, by="unique_ID")
+
+
+write.csv(data, "~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/phenotypic_data_no_outliers_with_parents_F1s.csv", quote = FALSE, row.names = FALSE)
+```
+
+## Exclude parents and F1s
+```{r exclude parents and F1s}
+#exclude parents and F1s
+inflor_by_ID_filtered <- inflor_by_ID %>%
+  filter(!grepl("^(F1|P)", unique_ID))
+
+redarea_by_ID_filtered <- redarea_by_ID %>%
+  filter(!grepl("^(F1|P)", unique_ID))
+
+flo_morph_by_ID_filtered <- flo_morph_by_ID %>%
+  filter(!grepl("^(F1|P)", unique_ID))
+
+nectar_by_ID_filtered <- nectar_by_ID %>%
+  filter(!grepl("^(F1|P)", unique_ID))
+
+data <- inflor_by_ID_filtered %>% 
+  full_join(redarea_by_ID_filtered, by="unique_ID") %>%
+  full_join(flo_morph_by_ID_filtered, by="unique_ID") %>%
+  full_join(nectar_by_ID_filtered, by="unique_ID")
+
+
+write.csv(data, "~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/phenotypic_data_no_outliers_exclude_parents_F1s.csv", quote = FALSE, row.names = FALSE)
+
+```

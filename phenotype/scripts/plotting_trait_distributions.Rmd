@@ -1,0 +1,468 @@
+---
+title: "phenotypes"
+output: pdf_document
+date: "2023-10-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(dev=c('png', 'cairo_pdf'),  comment="", echo=T, warning=FALSE, cache=F, message=FALSE,  fig.path='figure/theme_test/')
+#extrafont::loadfonts()
+#extrafont::loadfonts(quiet=TRUE, device='pdf')
+```
+
+# Plotting the distributions of each trait
+### K. Uckele October 13, 2023
+
+```{r libraries, echo=FALSE}
+library(googlesheets4)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(EnvStats)
+library(cowplot)
+#library(extrafont)
+library(Cairo)
+library(tidyverse)
+library(hrbrthemes)
+library(ggtext)
+```
+
+
+## Load phenotypic data
+```{r load data}
+morphometric <- read_csv(
+  "~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/phenotypic_data_no_outliers_with_parents_F1s.csv",
+  col_names = TRUE)
+
+morphometric <- morphometric %>%
+  mutate(VEFN = factor(VEFN, levels = c("0", "1"), 
+                           labels = c("Absent", "Present")))
+
+morphometric <- morphometric %>%
+  mutate(VNG = factor(VNG, levels = c("0", "1"), 
+                           labels = c("Absent", "Present")))
+
+color <- read_csv(
+  "~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/spectral_shape_descriptors.csv", col_names = TRUE)
+```
+
+## Make new variables: plant_type
+```{r make plant type variable}
+morphometric$plant_type <- substr(morphometric$unique_ID, 1, 2)
+color$plant_type <- substr(color$id, 1, 2)
+```
+
+# Plots
+## Morphometric histogram plots 
+```{r plot distributions AI}
+# 1. Define the list of traits you want to plot
+# Exclude non-numeric columns if necessary
+traits <- c("INFA","CAL","VEFN","VNG","RALA","RAST","COL","COLL","STAE","TUA",
+            "STATL","LABL","LABW","CLL","STAL","STAW","ANL","ANW","STIW","STYL",
+            "VFN","FNSC","EFNSC40")    
+
+# 2. Specify binwidths for each trait
+binwidths <- list(
+  INFA = 5,
+  CAL = NULL,
+  VEFN = NULL,
+  VNG = NULL,
+  RALA = NULL,
+  RAST = NULL,
+  COL = NULL,
+  COLL = NULL,
+  STAE = NULL,
+  TUA = NULL,
+  STATL = NULL,
+  LABL = NULL,
+  LABW = NULL,
+  CLL = NULL,
+  STAL = NULL,
+  STAW = NULL,
+  ANL = NULL,
+  ANW = NULL,
+  STIW = NULL,
+  STYL = NULL,
+  VFN = NULL,
+  FNSC = NULL,
+  EFNSC40 = NULL
+)
+
+# Ensure all traits have a specified binwidth
+# If some traits are missing, you can set a default binwidth
+default_binwidth <- 1
+for(trait in traits){
+  if(!trait %in% names(binwidths)){
+    binwidths[[trait]] <- default_binwidth
+    warning(paste("Binwidth for trait", trait, "not specified. Using default binwidth =", default_binwidth))
+  }
+}
+
+# 3. Define Unique IDs and Plant Types
+unique_ids <- c("F1_39", "F1_62", "P_125", "P_126", "P_950")
+plant_types <- c("39", "62") # 
+
+# 4. Create a Function to Generate Histogram for a Single Trait
+create_histogram <- function(trait, binwidth){
+  
+  # Extract averages for the current trait
+  F1_39avg <- as.numeric(morphometric[morphometric$unique_ID == "F1_39", trait])
+  F1_62avg <- as.numeric(morphometric[morphometric$unique_ID == "F1_62", trait])
+  P_125avg <- as.numeric(morphometric[morphometric$unique_ID == "P_125", trait])
+  P_126avg <- as.numeric(morphometric[morphometric$unique_ID == "P_126", trait])
+  P_950avg <- as.numeric(morphometric[morphometric$unique_ID == "P_950", trait])
+  
+  # Calculate mean of P_125avg and P_126avg
+  P_mean_avg <- mean(c(P_125avg, P_126avg), na.rm = TRUE)
+  
+  # Create the histogram if the trait is numeric:
+  if(is.numeric(morphometric[[trait]])){
+    
+    hist_plot <- ggplot(morphometric[morphometric$plant_type %in% plant_types, ], aes_string(x = trait)) +
+    geom_histogram(binwidth = binwidth, color = "#000000", fill = "lightblue") +
+    ylab("Count") +
+    geom_vline(xintercept = F1_39avg, linetype = "solid", color = "darkorange", size = 1.5) +
+    geom_vline(xintercept = F1_62avg, linetype = "solid", color = "darkorange", size = 1.5) +
+    geom_vline(xintercept = P_mean_avg, linetype = "longdash", color = "gold", size = 1.5) +
+    geom_vline(xintercept = P_950avg, linetype = "dotdash", color = "firebrick2", size = 1.5) +
+    labs(title = trait) +
+    theme_ipsum(base_size = 20) +
+    theme(
+      plot.title = element_textbox(hjust = 0.5, margin = margin(t = 5, b = 5), size = 20),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(
+    size = 20,         # Increased y-axis title font size
+    color = "black"   # Set y-axis title color to black
+  ),
+      plot.margin = unit(c(0.1, 0, 0.1, 0), "cm")
+    )
+  }
+  
+  # Create the histogram if the trait is a factor
+  if(is.factor(morphometric[[trait]])){
+    
+    # Using na.omit() to remove rows with NA in the 'trait' column
+    morphometric_filtered <- morphometric %>%
+    filter(plant_type %in% plant_types) %>%
+    na.omit(select(., all_of(trait)))  # Removes rows where 'trait' is NA
+    
+    hist_plot <- ggplot(morphometric_filtered[morphometric_filtered$plant_type %in% plant_types, ], aes_string(x = trait)) +
+    geom_bar(color = "#000000", fill = "lightblue") +  # Changed from geom_histogram() to geom_bar()
+    ylab("Count") +
+    geom_vline(xintercept = F1_39avg, linetype = "solid", color = "darkorange", size = 1.5) +
+    geom_vline(xintercept = F1_62avg, linetype = "solid", color = "darkorange", size = 1.5) +
+    geom_vline(xintercept = P_mean_avg, linetype = "longdash", color = "gold", size = 1.5) +
+    geom_vline(xintercept = P_950avg, linetype = "dotdash", color = "firebrick2", size = 1.5) +
+    labs(title = trait) +
+    theme_ipsum(base_size = 20) +
+    theme(
+      plot.title = element_textbox(hjust = 0.5, margin = margin(t = 5, b = 5), size = 15),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(                            # Added y-axis title customization
+        size = 20,                                            # Increased font size
+        face = "bold",                                        # Made the text bold
+        color = "black",                                      # Set text color to black
+        angle = 90,                                           # Ensure the y-axis title is vertical
+        vjust = 0.5                                           # Vertically center the y-axis title
+      ),
+      plot.margin = unit(c(0.1, 0, 0.1, 0), "cm")
+    )
+
+  }
+  return(hist_plot)
+}
+
+# 5. Loop Through Each Trait and Generate Histograms
+histograms <- list()
+
+for(trait in traits){
+  
+  # Retrieve the binwidth for the current trait
+  binwidth <- binwidths[[trait]]
+  
+  # Create the histogram
+  plot <- create_histogram(trait, binwidth)
+  
+  # Store the plot in the list
+  histograms[[trait]] <- plot
+  
+  # Display the plot
+  print(plot)
+}
+```
+
+### Combines plots
+```{r ggarrange }
+# 6. Create Legend Plot
+legend_data <- data.frame(
+  x = c(1, 2, 3),
+  Category = c("C. lasius",
+               "C. bracteatus",
+               "F1 hybrid")
+)
+
+legend_plot <- ggplot(legend_data, aes(x = x)) +
+  geom_vline(aes(xintercept = x, color = Category, linetype = Category), size = 1.2) +
+  scale_color_manual(
+    name = NULL,
+    values = c(
+      "C. lasius" = "gold",
+      "C. bracteatus" = "firebrick2",
+      "F1 hybrid" = "darkorange"
+    )
+  ) +
+  scale_linetype_manual(
+    name = NULL,
+    values = c(
+      "C. lasius Parental Species" = "longdash",
+      "C. bracteatus Parental Species" = "dotdash",
+      "F1 Hybrids" = "solid"
+    )
+  ) +
+  theme_void() +
+  theme(
+    legend.position = "bottom",
+    legend.text = element_text(size = 12)
+  )
+
+# 7. Combine Histograms into a Grid
+nrow_grid <- 5 # Adjust based on number of histograms and desired layout
+
+histogram_grid <- plot_grid(
+  plotlist = histograms,
+  nrow = nrow_grid,
+  align = "v"
+)
+
+# 8. Combine Histogram Grid with Legend Plot
+combined_plot <- plot_grid(
+  histogram_grid,
+  legend_plot,
+  ncol = 1,
+  rel_heights = c(1, 0.05) # Adjust relative heights as needed
+)
+
+# 9. Save the Combined Plot to a PDF
+CairoPDF(file = "~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/figures/morphometric_combined_histograms_with_legend.pdf", width = 22, height = 18) # Adjust size as needed
+print(combined_plot)
+dev.off()
+
+# Optional: Display the Combined Plot in R Session
+# print(combined_plot)
+```
+
+## Colormetric histogram plots
+```{r plot distributions colormetrics}
+# 1. Define the list of traits you want to plot
+# Exclude non-numeric columns if necessary
+traits <- c("S1U_bract","S1V_bract","S1B_bract","S1G_bract","S1R_bract",
+            "S5_bract","S9_bract","H4_bract","B3_petal","S1U_petal",
+            "S1V_petal","S1B_petal","S1Y_petal","S1R_petal","S5_petal",
+            "S9_petal","H4_petal","B3_labellum","S1B_labellum","S1Y_labellum",
+            "S1R_labellum","S5_labellum","S6_labellum","S9_labellum","H3_labellum",
+            "H4_labellum")    
+
+# 2. Specify binwidths for each trait
+binwidths <- list(
+  INFA = 5,
+  CAL = NULL,
+  VEFN = NULL,
+  VNG = NULL,
+  RALA = NULL,
+  RAST = NULL,
+  COL = NULL,
+  COLL = NULL,
+  STAE = NULL,
+  TUA = NULL,
+  STATL = NULL,
+  LABL = NULL,
+  LABW = NULL,
+  CLL = NULL,
+  STAL = NULL,
+  STAW = NULL,
+  ANL = NULL,
+  ANW = NULL,
+  STIW = NULL,
+  STYL = NULL,
+  VFN = NULL,
+  FNSC = NULL,
+  EFNSC40 = NULL
+)
+
+# Ensure all traits have a specified binwidth
+# If some traits are missing, you can set a default binwidth
+default_binwidth <- NULL
+for(trait in traits){
+  if(!trait %in% names(binwidths)){
+    binwidths[[trait]] <- default_binwidth
+    warning(paste("Binwidth for trait", trait, "not specified. Using default binwidth =", default_binwidth))
+  }
+}
+
+# 3. Define Unique IDs and Plant Types
+unique_ids <- c("F1_39", "F1_62", "P_125", "P_126", "P_950")
+plant_types <- c("39", "62") # 
+
+# 4. Create a Function to Generate Histogram for a Single Trait
+create_histogram <- function(trait, binwidth){
+  
+  # Extract averages for the current trait
+  F1_39avg <- as.numeric(color[color$id == "39", trait])
+  F1_62avg <- as.numeric(color[color$id == "62", trait])
+  P_125avg <- as.numeric(color[color$id == "125", trait])
+  P_126avg <- as.numeric(color[color$id == "126", trait])
+  P_950avg <- as.numeric(color[color$id == "BRAC", trait])
+  
+  # Calculate mean of P_125avg and P_126avg
+  P_mean_avg <- mean(c(P_125avg, P_126avg), na.rm = TRUE)
+  
+  # Removing rows where id is "39" or "62" (character or factor)
+    filtered_color <- color %>%
+      filter(!id %in% c("39", "62"))
+  
+  # Create the histogram if the trait is numeric:
+  if(is.numeric(filtered_color[[trait]])){
+    
+    hist_plot <- ggplot(filtered_color[filtered_color$plant_type %in% plant_types, ], aes_string(x = trait)) +
+    geom_histogram(binwidth = binwidth, color = "#000000", fill = "lightblue") +
+    ylab("Count") +
+    geom_vline(xintercept = F1_39avg, linetype = "solid", color = "darkorange", size = 1.5) +
+    geom_vline(xintercept = F1_62avg, linetype = "solid", color = "darkorange", size = 1.5) +
+    geom_vline(xintercept = P_mean_avg, linetype = "longdash", color = "gold", size = 1.5) +
+    geom_vline(xintercept = P_950avg, linetype = "dotdash", color = "firebrick2", size = 1.5) +
+    labs(title = trait) +
+    theme_ipsum(base_size = 20) +
+    theme(
+      plot.title = element_textbox(hjust = 0.5, margin = margin(t = 5, b = 5), size = 20),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(
+    size = 20,         # Increased y-axis title font size
+    color = "black"   # Set y-axis title color to black
+  ),
+      plot.margin = unit(c(0.1, 0, 0.1, 0), "cm")
+    )
+  }
+  
+  # Create the histogram if the trait is a factor
+  if(is.factor(filtered_color[[trait]])){
+    
+    # Using na.omit() to remove rows with NA in the 'trait' column
+    color_filtered <- filtered_color %>%
+    filter(plant_type %in% plant_types) %>%
+    na.omit(select(., all_of(trait)))  # Removes rows where 'trait' is NA
+    
+    hist_plot <- ggplot(filtered_color[filtered_color$plant_type %in% plant_types, ], aes_string(x = trait)) +
+    geom_bar(color = "#000000", fill = "lightblue") +  # Changed from geom_histogram() to geom_bar()
+    ylab("Count") +
+    geom_vline(xintercept = F1_39avg, linetype = "solid", color = "darkorange", size = 1.5) +
+    geom_vline(xintercept = F1_62avg, linetype = "solid", color = "darkorange", size = 1.5) +
+    geom_vline(xintercept = P_mean_avg, linetype = "longdash", color = "gold", size = 1.5) +
+    geom_vline(xintercept = P_950avg, linetype = "dotdash", color = "firebrick2", size = 1.5) +
+    labs(title = trait) +
+    theme_ipsum(base_size = 20) +
+    theme(
+      plot.title = element_textbox(hjust = 0.5, margin = margin(t = 5, b = 5), size = 15),
+      axis.title.x = element_blank(),
+      axis.title.y = element_text(                            # Added y-axis title customization
+        size = 20,                                            # Increased font size
+        face = "bold",                                        # Made the text bold
+        color = "black",                                      # Set text color to black
+        angle = 90,                                           # Ensure the y-axis title is vertical
+        vjust = 0.5                                           # Vertically center the y-axis title
+      ),
+      plot.margin = unit(c(0.1, 0, 0.1, 0), "cm")
+    )
+
+  }
+  return(hist_plot)
+}
+
+# 5. Loop Through Each Trait and Generate Histograms
+histograms <- list()
+
+for(trait in traits){
+  
+  # Retrieve the binwidth for the current trait
+  binwidth <- binwidths[[trait]]
+  
+  # Create the histogram
+  plot <- create_histogram(trait, binwidth)
+  
+  # Store the plot in the list
+  histograms[[trait]] <- plot
+  
+  # Display the plot
+  print(plot)
+}
+```
+
+### Combines plots
+```{r ggarrange colormetric}
+# 6. Create Legend Plot
+legend_data <- data.frame(
+  x = c(1, 2, 3),
+  Category = c("C. lasius",
+               "C. bracteatus",
+               "F1 hybrid")
+)
+
+legend_plot <- ggplot(legend_data, aes(x = x)) +
+  geom_vline(aes(xintercept = x, color = Category, linetype = Category), size = 1.2) +
+  scale_color_manual(
+    name = NULL,
+    values = c(
+      "C. lasius" = "gold",
+      "C. bracteatus" = "firebrick2",
+      "F1 hybrid" = "darkorange"
+    )
+  ) +
+  scale_linetype_manual(
+    name = NULL,
+    values = c(
+      "C. lasius Parental Species" = "longdash",
+      "C. bracteatus Parental Species" = "dotdash",
+      "F1 Hybrids" = "solid"
+    )
+  ) +
+  theme_void() +
+  theme(
+    legend.position = "bottom",
+    legend.text = element_text(size = 12)
+  )
+
+# 7. Combine Histograms into a Grid
+nrow_grid <- 5 # Adjust based on number of histograms and desired layout
+
+histogram_grid <- plot_grid(
+  plotlist = histograms,
+  nrow = nrow_grid,
+  align = "v"
+)
+
+# 8. Combine Histogram Grid with Legend Plot
+combined_plot <- plot_grid(
+  histogram_grid,
+  legend_plot,
+  ncol = 1,
+  rel_heights = c(1, 0.05) # Adjust relative heights as needed
+)
+
+# 9. Save the Combined Plot to a PDF
+CairoPDF(file = "~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/figures/colormetric_combined_histograms_with_legend.pdf", width = 22, height = 18) # Adjust size as needed
+print(combined_plot)
+dev.off()
+
+# Optional: Display the Combined Plot in R Session
+# print(combined_plot)
+```
+
+
+
+
+
+
+
+
+
+

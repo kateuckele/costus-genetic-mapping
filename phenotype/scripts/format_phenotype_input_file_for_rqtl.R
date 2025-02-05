@@ -26,7 +26,7 @@ if (!require("dplyr")) {
 # ----------------------------
 
 # Define file paths (adjust paths as necessary)
-pheno_path <- "~/Dropbox/Costus/genetic_mapping/phenotypes/phenotypes_nooutliers.csv"
+pheno_path <- "~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/phenotypic_data_no_outliers.csv"
 color_path <- "~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/spectral_shape_descriptors.csv"
 plant_lab_map_path <- "~/Dropbox/Costus/genetic_mapping/R:QTL/plate_prep_for_Davis.csv"
 gen_path <- "~/Dropbox/Costus/genetic_mapping/R:QTL/costus_gen_2024July23.csv"
