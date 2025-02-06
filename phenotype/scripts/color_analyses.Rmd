@@ -245,6 +245,145 @@ legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
 dev.off()
 ```
 
+## Principal component analysis - Bract 
+```{r}
+# opt = 'center' centers the spectra to have a mean reflectance of zero (thus removing brightness as a dominant variable in the PCA)
+# opt = 'bin' bins the spectra into user-defined bins
+spec.bin <- procspec(bract_spec_scaleminmax, opt = c("bin", "center"))
+
+# Transpose so wavelength are variables for the PCA
+spec.bin <- t(spec.bin)
+
+# Names variables as wavelength bins
+colnames(spec.bin) <- spec.bin[1, ]
+spec.bin <- spec.bin[-1, ] # remove 'wl' row
+
+# Run PCA on the processed spectra data
+pca1 <- prcomp(spec.bin, scale. = TRUE)
+(summary_pca <- summary(pca1))
+plot(summary_pca$importance[2,])
+
+# Convert column names (wavelength bins) to numeric values and assign to 'wls'
+wls <- as.numeric(colnames(spec.bin))
+
+# Plot loadings of the first principal component (PC1)
+plot(pca1$rotation[, 1] ~ wls, type = "l", ylab = "PC1 loading")
+abline(h = 0, lty = 2)
+## appears to contrast shorter wavelengths (300-570 nm) with long wavelengths 
+## (570-700 nm)
+
+# Plot loadings of the second principal component (PC2)
+plot(pca1$rotation[, 2] ~ wls, type = "l", ylab = "PC2 loading")
+abline(h = 0, lty = 2)
+## confusing. UV wavelengths (300-400) are correlated with warm colors 
+## (520-630 nm -- green, yellow, orange, red)
+## cool wavelengths (400-520 nm) are correlated with hot colors (630-700 nm -- red)
+
+# Plot loadings of the third principal component (PC2)
+plot(pca1$rotation[, 3] ~ wls, type = "l", ylab = "PC3 loading")
+abline(h = 0, lty = 2) 
+## Confusing. wavelengths 490-610 nm (huge range including most of visible light) 
+## are contrasted with <490 nm (UV and dark blue/violet) and >610 nm (orange/red)
+
+# Extracting PCA Scores
+pca_bract <- cbind(pca1$x[,1], pca1$x[,2], pca1$x[,3])
+colnames(pca_bract) <- c("PC1_bract", "PC2_bract", "PC3_bract")
+```
+## Principal component analysis - Petal 
+```{r}
+# opt = 'center' centers the spectra to have a mean reflectance of zero (thus removing brightness as a dominant variable in the PCA)
+# opt = 'bin' bins the spectra into user-defined bins
+spec.bin <- procspec(petal_spec_scaleminmax, opt = c("bin", "center"))
+
+# Transpose so wavelength are variables for the PCA
+spec.bin <- t(spec.bin)
+
+# Names variables as wavelength bins
+colnames(spec.bin) <- spec.bin[1, ]
+spec.bin <- spec.bin[-1, ] # remove 'wl' row
+
+# Run PCA on the processed spectra data
+pca1 <- prcomp(spec.bin, scale. = TRUE)
+(summary_pca <- summary(pca1))
+plot(summary_pca$importance[2,])
+
+# Convert column names (wavelength bins) to numeric values and assign to 'wls'
+wls <- as.numeric(colnames(spec.bin))
+
+# Plot loadings of the first principal component (PC1)
+plot(pca1$rotation[, 1] ~ wls, type = "l", ylab = "PC1 loading")
+abline(h = 0, lty = 2)
+## appears to contrast short wavelengths (310-510 nm) with long wavelengths 
+## (510-700 nm)
+
+# Plot loadings of the second principal component (PC2)
+plot(pca1$rotation[, 2] ~ wls, type = "l", ylab = "PC2 loading")
+abline(h = 0, lty = 2)
+## appears to be associated with the UV range (300-400 nm)
+
+# Plot loadings of the third principal component (PC2)
+plot(pca1$rotation[, 3] ~ wls, type = "l", ylab = "PC3 loading")
+abline(h = 0, lty = 2) 
+## appears to be associated with wavelengths 500-550 nm (green)
+
+# Extracting PCA Scores
+pca_petal <- cbind(pca1$x[,1], pca1$x[,2], pca1$x[,3])
+colnames(pca_petal) <- c("PC1_petal", "PC2_petal", "PC3_petal")
+```
+
+## Principal component analysis - Labellum 
+```{r}
+# opt = 'center' centers the spectra to have a mean reflectance of zero (thus removing brightness as a dominant variable in the PCA)
+# opt = 'bin' bins the spectra into user-defined bins
+spec.bin <- procspec(labellum_spec_scaleminmax, opt = c("bin", "center"))
+
+# Transpose so wavelength are variables for the PCA
+spec.bin <- t(spec.bin)
+
+# Names variables as wavelength bins
+colnames(spec.bin) <- spec.bin[1, ]
+spec.bin <- spec.bin[-1, ] # remove 'wl' row
+
+# Run PCA on the processed spectra data
+pca1 <- prcomp(spec.bin, scale. = TRUE)
+(summary_pca <- summary(pca1))
+plot(summary_pca$importance[2,])
+
+# Convert column names (wavelength bins) to numeric values and assign to 'wls'
+wls <- as.numeric(colnames(spec.bin))
+
+# Plot loadings of the first principal component (PC1)
+plot(pca1$rotation[, 1] ~ wls, type = "l", ylab = "PC1 loading")
+abline(h = 0, lty = 2)
+## appears to contrast shorter wavelengths (300-520 nm) with long wavelengths 
+## (520-700 nm)
+
+# Plot loadings of the second principal component (PC2)
+plot(pca1$rotation[, 2] ~ wls, type = "l", ylab = "PC2 loading")
+abline(h = 0, lty = 2)
+## appears to be associated with UV wavelengths (300-390 nm)
+
+# Plot loadings of the third principal component (PC2)
+plot(pca1$rotation[, 3] ~ wls, type = "l", ylab = "PC3 loading")
+abline(h = 0, lty = 2) 
+## appears to be associated with wavelengths 500-570 nm (green, yellow)
+
+# Extracting PCA Scores
+pca_labellum <- cbind(pca1$x[,1], pca1$x[,2], pca1$x[,3])
+colnames(pca_labellum) <- c("PC1_labellum", "PC2_labellum", "PC3_labellum")
+```
+## Format PC Scores 
+```{r}
+# Replace 'x' with '_' in row names
+rownames(pca_bract) <- gsub("x", "_", rownames(pca_bract))
+rownames(pca_petal) <- gsub("x", "_", rownames(pca_petal))
+rownames(pca_labellum) <- gsub("x", "_", rownames(pca_labellum))
+
+# Convert row names to a column named 'id'
+pca_bract <- pca_bract %>% rownames_to_column(var = "id")
+pca_petal <- pca_petal %>% rownames_to_column(var = "id")
+pca_labellum <- pca_labellum %>% rownames_to_column(var = "id")
+```
 ## Spectral Descriptors
 We compute various spectral descriptors to quantify the color properties of the floral tissues.
 
@@ -886,28 +1025,32 @@ colnames(summary_petal_UV) <- c("id", "H1_UV_petal")
 colnames(summary_labellum_UV) <- c("id", "H1_UV_labellum")
 ```
 
-## Merge Summary Dataframes
-Combine the summary dataframes for bract, petal, and labellum into a single dataframe.
+
+# Vision Models
+```{r}
+
+```
+
+# Merge Dataframes
 ```{r merge UV}
 # Merge all summaries by 'id'
-joined_df <- summary_bract %>%
+joined_df <- pca_bract %>%
+  full_join(pca_petal, by = "id") %>%
+  full_join(pca_labellum, by = "id") %>%
+  full_join(summary_bract, by = "id") %>%
   full_join(summary_petal, by = "id") %>%
   full_join(summary_labellum, by = "id") %>%
   full_join(summary_petal_UV, by = "id") %>%
   full_join(summary_labellum_UV, by = "id")
 ```
 
-## Export Summary Descriptors to CSV
+# Export Summary Descriptors to CSV
 Save the combined summary descriptors to a CSV file for further analysis or reporting.
 ```{r export UV}
 # Write the combined summary dataframe to a CSV file
-write.csv(joined_df, "./results/processed_data/spectral_shape_descriptors.csv", 
+write.csv(joined_df, "./results/processed_data/color_traits.csv", 
           quote = FALSE, row.names = FALSE)
 ```
-
-
-
-
 
 
 
