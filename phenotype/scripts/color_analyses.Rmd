@@ -286,8 +286,7 @@ abline(h = 0, lty = 2)
 ## are contrasted with <490 nm (UV and dark blue/violet) and >610 nm (orange/red)
 
 # Extracting PCA Scores
-pca_bract <- cbind(pca1$x[,1], pca1$x[,2], pca1$x[,3])
-colnames(pca_bract) <- c("PC1_bract", "PC2_bract", "PC3_bract")
+pca_bract <- data.frame(PC1_bract=pca1$x[,1], PC2_bract=pca1$x[,2], PC3_bract=pca1$x[,3])
 ```
 ## Principal component analysis - Petal 
 ```{r}
@@ -327,8 +326,7 @@ abline(h = 0, lty = 2)
 ## appears to be associated with wavelengths 500-550 nm (green)
 
 # Extracting PCA Scores
-pca_petal <- cbind(pca1$x[,1], pca1$x[,2], pca1$x[,3])
-colnames(pca_petal) <- c("PC1_petal", "PC2_petal", "PC3_petal")
+pca_petal <- data.frame(PC1_petal=pca1$x[,1], PC2_petal=pca1$x[,2], PC3_petal=pca1$x[,3])
 ```
 
 ## Principal component analysis - Labellum 
@@ -369,8 +367,7 @@ abline(h = 0, lty = 2)
 ## appears to be associated with wavelengths 500-570 nm (green, yellow)
 
 # Extracting PCA Scores
-pca_labellum <- cbind(pca1$x[,1], pca1$x[,2], pca1$x[,3])
-colnames(pca_labellum) <- c("PC1_labellum", "PC2_labellum", "PC3_labellum")
+pca_labellum <- data.frame(PC1_labellum=pca1$x[,1], PC2_labellum=pca1$x[,2], PC3_labellum=pca1$x[,3])
 ```
 ## Format PC Scores 
 ```{r}
@@ -687,9 +684,9 @@ labellum_spec_sm <- procspec(labellum_spec_avg, opt = "smooth", span = 0.2)
 Scale the spectral data to different reference points for comparative analysis.
 ```{r scale UV}
 # Scale spectra to both minimum and maximum reflectance
-bract_spec_scaleminmax <- procspec(bract_spec_sm, opt = c("min", "max"))
-petal_spec_scaleminmax <- procspec(petal_spec_sm, opt = c("min", "max"))
-labellum_spec_scaleminmax <- procspec(labellum_spec_sm, opt = c("min", "max"))
+bract_spec_scaleminmax_UV <- procspec(bract_spec_sm, opt = c("min", "max"))
+petal_spec_scaleminmax_UV <- procspec(petal_spec_sm, opt = c("min", "max"))
+labellum_spec_scaleminmax_UV <- procspec(labellum_spec_sm, opt = c("min", "max"))
 ```
 
 ## Plot Processed Spectra
@@ -705,17 +702,17 @@ highlight_colors <- c(rep("lightgrey", 170), "gold1", "gold1", "darkgreen")
 ```{r bract-spectra UV}
 # Order samples to highlight specific ones
 order_spec_bract <- c(
-  which(names(bract_spec_scaleminmax) == "125"),
-  which(names(bract_spec_scaleminmax) == "126"),
-  which(names(bract_spec_scaleminmax) == "BRAC")
+  which(names(bract_spec_scaleminmax_UV) == "125"),
+  which(names(bract_spec_scaleminmax_UV) == "126"),
+  which(names(bract_spec_scaleminmax_UV) == "BRAC")
 )
 
 # Reorder columns to place highlighted samples at the end
-columns_bract <- 1:ncol(bract_spec_scaleminmax)
+columns_bract <- 1:ncol(bract_spec_scaleminmax_UV)
 order_spec_bract <- c(columns_bract[columns_bract %notin% order_spec_bract], order_spec_bract)
 
 # Plot the spectra
-plot(bract_spec_scaleminmax[order_spec_bract], type = "o",
+plot(bract_spec_scaleminmax_UV[order_spec_bract], type = "o",
      col = highlight_colors, main = "Bract Spectra",
      xlab = "Wavelength (nm)", ylab = "Reflectance (%)")
 
@@ -728,17 +725,17 @@ legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
 ```{r petal-spectra UV}
 # Order samples to highlight specific ones
 order_spec_petal <- c(
-  which(names(petal_spec_scaleminmax) == "125"),
-  which(names(petal_spec_scaleminmax) == "126"),
-  which(names(petal_spec_scaleminmax) == "BRAC")
+  which(names(petal_spec_scaleminmax_UV) == "125"),
+  which(names(petal_spec_scaleminmax_UV) == "126"),
+  which(names(petal_spec_scaleminmax_UV) == "BRAC")
 )
 
 # Reorder columns to place highlighted samples at the end
-columns_petal <- 1:ncol(petal_spec_scaleminmax)
+columns_petal <- 1:ncol(petal_spec_scaleminmax_UV)
 order_spec_petal <- c(columns_petal[columns_petal %notin% order_spec_petal], order_spec_petal)
 
 # Plot the spectra
-plot(petal_spec_scaleminmax[order_spec_petal], type = "o",
+plot(petal_spec_scaleminmax_UV[order_spec_petal], type = "o",
      col = highlight_colors, main = "Petal Spectra",
      xlab = "Wavelength (nm)", ylab = "Reflectance (%)")
 
@@ -751,17 +748,17 @@ legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
 ```{r labellum-spectra UV}
 # Order samples to highlight specific ones
 order_spec_labellum <- c(
-  which(names(labellum_spec_scaleminmax) == "125"),
-  which(names(labellum_spec_scaleminmax) == "126"),
-  which(names(labellum_spec_scaleminmax) == "BRAC")
+  which(names(labellum_spec_scaleminmax_UV) == "125"),
+  which(names(labellum_spec_scaleminmax_UV) == "126"),
+  which(names(labellum_spec_scaleminmax_UV) == "BRAC")
 )
 
 # Reorder columns to place highlighted samples at the end
-columns_labellum <- 1:ncol(labellum_spec_scaleminmax)
+columns_labellum <- 1:ncol(labellum_spec_scaleminmax_UV)
 order_spec_labellum <- c(columns_labellum[columns_labellum %notin% order_spec_labellum], order_spec_labellum)
 
 # Plot the spectra
-plot(labellum_spec_scaleminmax[order_spec_labellum], type = "o",
+plot(labellum_spec_scaleminmax_UV[order_spec_labellum], type = "o",
      col = highlight_colors, main = "Labellum Spectra",
      xlab = "Wavelength (nm)", ylab = "Reflectance (%)")
 
@@ -777,17 +774,17 @@ pdf("./results/figures/Combined_UVspectra_Bract_Petal_Labellum_Cbracteatus_Clasi
 par(mfrow = c(1, 3))
 # Increase left margin to provide more space for y-axis labels
 par(mar = c(5, 5, 4, 2) + 0.1)  # c(bottom, left, top, right)
-plot(bract_spec_scaleminmax[order_spec_bract], type = "o", col = highlight_colors, 
+plot(bract_spec_scaleminmax_UV[order_spec_bract], type = "o", col = highlight_colors, 
      main = "Bract spectra", xlab = "Wavelength (nm)", ylab = "Reflectance (%)",
      cex.main = 3, cex.lab = 2.5, cex.axis = 2, lwd = 2) 
 legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
        col = c("darkgreen", "gold1"), lty = 1, cex = 2.5, bty = "n")
-plot(petal_spec_scaleminmax[order_spec_petal], type = "o", col = highlight_colors, 
+plot(petal_spec_scaleminmax_UV[order_spec_petal], type = "o", col = highlight_colors, 
      main = "Petal spectra", xlab = "Wavelength (nm)", ylab = "Reflectance (%)",
      cex.main = 3, cex.lab = 2.5, cex.axis = 2, lwd = 2)
 legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
        col = c("darkgreen", "gold1"), lty = 1, cex = 2.5, bty = "n")
-plot(labellum_spec_scaleminmax[order_spec_labellum], type = "o", col = highlight_colors, 
+plot(labellum_spec_scaleminmax_UV[order_spec_labellum], type = "o", col = highlight_colors, 
      main = "Labellum spectra", xlab = "Wavelength (nm)", ylab = "Reflectance (%)",
      cex.main = 3, cex.lab = 2.5, cex.axis = 2, lwd = 2)
 legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
@@ -820,7 +817,7 @@ Note: Some metrics may be sensitive to spectral noise.
 
 ```{r bract-summary UV}
 # Calculate spectral descriptors for bract
-summary_bract_UV <- summary(bract_spec_scaleminmax)
+summary_bract_UV <- summary(bract_spec_scaleminmax_UV)
 
 # Remove S2 due to infinite values
 summary_bract_UV <- summary_bract_UV %>% select(-S2)
@@ -880,7 +877,7 @@ dev.off()
 ### Petal Summary
 ```{r petal-summary UV}
 # Calculate summary statistics for petal
-summary_petal_UV <- summary(petal_spec_scaleminmax)
+summary_petal_UV <- summary(petal_spec_scaleminmax_UV)
 
 # Remove S2 due to infinite values
 summary_petal_UV <- summary_petal_UV %>% select(-S2)
@@ -939,7 +936,7 @@ dev.off()
 ### Labellum Summary
 ```{r labellum-summary UV}
 # Calculate summary statistics for labellum
-summary_labellum_UV <- summary(labellum_spec_scaleminmax)
+summary_labellum_UV <- summary(labellum_spec_scaleminmax_UV)
 
 # Remove S2 due to infinite values
 summary_labellum_UV <- summary_labellum_UV %>% select(-S2)
@@ -1028,7 +1025,83 @@ colnames(summary_labellum_UV) <- c("id", "H1_UV_labellum")
 
 # Vision Models
 ```{r}
+# Compute Photoreceptor Quantum Catches for Birds and Bees
+## Bract
+bract_bird_vis <- vismodel(bract_spec_scaleminmax, visual = "avg.uv", relative = TRUE)
+bract_bee_vis <- vismodel(bract_spec_scaleminmax, visual = "apis", relative = TRUE)
 
+## Petal
+petal_bird_vis <- vismodel(petal_spec_scaleminmax, visual = "avg.uv", relative = TRUE)
+petal_bee_vis <- vismodel(petal_spec_scaleminmax, visual = "apis", relative = TRUE)
+
+## Labellum
+labellum_bird_vis <- vismodel(labellum_spec_scaleminmax, visual = "avg.uv", relative = TRUE)
+labellum_bee_vis <- vismodel(labellum_spec_scaleminmax, visual = "apis", relative = TRUE)
+
+# Convert Bird Vision Data into a Color Space
+bract_bird_colspace <- colspace(bract_bird_vis, space = "auto")
+petal_bird_colspace <- colspace(petal_bird_vis, space = "auto")
+labellum_bird_colspace <- colspace(labellum_bird_vis, space = "auto")
+
+# Plot the Avian Color Space Representation
+plot(bract_bird_colspace, col = spec2rgb(bract_spec_scaleminmax))
+projplot(bract_bird_colspace, pch = 20, col = spec2rgb(bract_spec_scaleminmax))
+
+plot(petal_bird_colspace, col = spec2rgb(petal_spec_scaleminmax))
+projplot(petal_bird_colspace, pch = 20, col = spec2rgb(petal_spec_scaleminmax))
+
+plot(labellum_bird_colspace, col = spec2rgb(labellum_spec_scaleminmax))
+projplot(labellum_bird_colspace, pch = 20, col = spec2rgb(labellum_spec_scaleminmax))
+
+# Convert Bee Vision Data into a Color Space
+bract_bee_colspace <- colspace(bract_bee_vis, space = "tri")
+petal_bee_colspace <- colspace(petal_bee_vis, space = "tri")
+labellum_bee_colspace <- colspace(labellum_bee_vis, space = "tri")
+
+# Plot the Bee Color Space Representation
+plot(bract_bee_colspace, col = spec2rgb(bract_spec_scaleminmax))
+plot(petal_bee_colspace, col = spec2rgb(petal_spec_scaleminmax))
+plot(labellum_bee_colspace, col = spec2rgb(labellum_spec_scaleminmax))
+
+# Replace 'x' with '_' in row names
+rownames(bract_bird_colspace) <- gsub("x", "_", rownames(bract_bird_colspace))
+rownames(bract_bee_colspace) <- gsub("x", "_", rownames(bract_bee_colspace))
+
+rownames(petal_bird_colspace) <- gsub("x", "_", rownames(petal_bird_colspace))
+rownames(petal_bee_colspace) <- gsub("x", "_", rownames(petal_bee_colspace))
+
+rownames(labellum_bird_colspace) <- gsub("x", "_", rownames(labellum_bird_colspace))
+rownames(labellum_bee_colspace) <- gsub("x", "_", rownames(labellum_bee_colspace))
+
+# Convert row names to a column named 'id'
+bract_bird_colspace <- bract_bird_colspace %>% rownames_to_column(var = "id")
+bract_bee_colspace <- bract_bee_colspace %>% rownames_to_column(var = "id")
+
+petal_bird_colspace <- petal_bird_colspace %>% rownames_to_column(var = "id")
+petal_bee_colspace <- petal_bee_colspace %>% rownames_to_column(var = "id")
+
+labellum_bird_colspace <- labellum_bird_colspace %>% rownames_to_column(var = "id")
+labellum_bee_colspace <- labellum_bee_colspace %>% rownames_to_column(var = "id")
+
+# Subset relevant columns based on analysis needs
+bract_bird_colspace <- bract_bird_colspace[, c("id", "h.theta", "r.vec")]
+bract_bee_colspace <- bract_bee_colspace[, c("id", "h.theta", "r.vec")]
+
+petal_bird_colspace <- petal_bird_colspace[, c("id", "h.theta", "r.vec")]
+petal_bee_colspace <- petal_bee_colspace[, c("id", "h.theta", "r.vec")]
+
+labellum_bird_colspace <- labellum_bird_colspace[, c("id", "h.theta", "r.vec")]
+labellum_bee_colspace <- labellum_bee_colspace[, c("id", "h.theta", "r.vec")]
+
+# Rename columns to include tissue type
+colnames(bract_bird_colspace) <- c("id", "h.theta.bird.bract", "r.vec.bird.bract")
+colnames(bract_bee_colspace) <- c("id", "h.theta.bee.bract", "r.vec.bee.bract")
+
+colnames(petal_bird_colspace) <- c("id", "h.theta.bird.petal", "r.vec.bird.petal")
+colnames(petal_bee_colspace) <- c("id", "h.theta.bee.petal", "r.vec.bee.petal")
+
+colnames(labellum_bird_colspace) <- c("id", "h.theta.bird.labellum", "r.vec.bird.labellum")
+colnames(labellum_bee_colspace) <- c("id", "h.theta.bee.labellum", "r.vec.bee.labellum")
 ```
 
 # Merge Dataframes
@@ -1041,7 +1114,13 @@ joined_df <- pca_bract %>%
   full_join(summary_petal, by = "id") %>%
   full_join(summary_labellum, by = "id") %>%
   full_join(summary_petal_UV, by = "id") %>%
-  full_join(summary_labellum_UV, by = "id")
+  full_join(summary_labellum_UV, by = "id") %>%
+  full_join(bract_bird_colspace, by = "id") %>%
+  full_join(bract_bee_colspace, by = "id") %>%
+  full_join(petal_bird_colspace, by = "id") %>%
+  full_join(petal_bee_colspace, by = "id") %>%
+  full_join(labellum_bird_colspace, by = "id") %>%
+  full_join(labellum_bee_colspace, by = "id")
 ```
 
 # Export Summary Descriptors to CSV

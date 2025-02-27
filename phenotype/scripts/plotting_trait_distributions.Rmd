@@ -44,7 +44,7 @@ morphometric <- morphometric %>%
                            labels = c("Absent", "Present")))
 
 color <- read_csv(
-  "~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/spectral_shape_descriptors.csv", col_names = TRUE)
+  "~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/color_traits.csv", col_names = TRUE)
 ```
 
 ## Make new variables: plant_type
@@ -256,12 +256,21 @@ dev.off()
 ```{r plot distributions colormetrics}
 # 1. Define the list of traits you want to plot
 # Exclude non-numeric columns if necessary
-traits <- c("S1U_bract","S1V_bract","S1B_bract","S1G_bract","S1R_bract",
-            "S5_bract","S9_bract","H4_bract","B3_petal","S1U_petal",
-            "S1V_petal","S1B_petal","S1Y_petal","S1R_petal","S5_petal",
-            "S9_petal","H4_petal","B3_labellum","S1B_labellum","S1Y_labellum",
-            "S1R_labellum","S5_labellum","S6_labellum","S9_labellum","H3_labellum",
-            "H4_labellum")    
+traits <- c("PC1_bract","PC2_bract","PC3_bract","PC1_petal","PC2_petal","PC3_petal",
+            "PC1_labellum","PC2_labellum","PC3_labellum",
+            "S1U_bract","S1V_bract","S1B_bract","S1G_bract","S1R_bract",
+            "S5_bract","S9_bract","H4_bract",
+            "B3_petal","S1U_petal","S1V_petal","S1B_petal","S1Y_petal","S1R_petal",
+            "S5_petal","S9_petal","H4_petal",
+            "B3_labellum","S1B_labellum","S1Y_labellum","S1R_labellum","S5_labellum",
+            "S6_labellum","S9_labellum","H3_labellum","H4_labellum",
+            "H1_UV_petal","H1_UV_labellum",
+            "h.theta.bird.bract","r.vec.bird.bract",
+            "h.theta.bee.bract","r.vec.bee.bract",
+            "h.theta.bird.petal","r.vec.bird.petal",
+            "h.theta.bee.petal","r.vec.bee.petal",
+            "h.theta.bird.labellum","r.vec.bird.labellum",
+            "h.theta.bee.labellum","r.vec.bee.labellum")    
 
 # 2. Specify binwidths for each trait
 binwidths <- list(
@@ -432,7 +441,7 @@ legend_plot <- ggplot(legend_data, aes(x = x)) +
   )
 
 # 7. Combine Histograms into a Grid
-nrow_grid <- 5 # Adjust based on number of histograms and desired layout
+nrow_grid <- 7 # Adjust based on number of histograms and desired layout
 
 histogram_grid <- plot_grid(
   plotlist = histograms,
