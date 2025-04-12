@@ -170,6 +170,15 @@ for (i in seq(10, 200, 10)) {
 ## 1   2   3   4   5   6   7   8   9    10 
 ## 522 470 417 411 410 401 396 318 262  26 
 
+## Try a range of max RF values: 
+for (i in seq(0.1, 0.8, 0.1)) {
+  lg <- formLinkageGroups(mapthis, max.rf=i, min.lod=50)
+  print(paste("min LOD is", i))
+  print(table(lg[,2]))
+}
+
+## Results essentially unchanged
+
 ## Assign min.LOD to 50, since we have 9 chromosomes
 ## Reorganize markers into these new linkage groups
 mapthis_LG <- formLinkageGroups(mapthis, max.rf=0.4, min.lod=50, reorgMarkers=TRUE)
@@ -178,7 +187,8 @@ mapthis_LG <- formLinkageGroups(mapthis, max.rf=0.4, min.lod=50, reorgMarkers=TR
 # Create a two-column matrix: first column is the C. lasius chromosome (extracted from row names),
 # second column is the linkage group number.
 LG <- formLinkageGroups(mapthis, max.rf=0.4, min.lod=50)
-lg_before_after <- cbind(as.numeric(substr(rownames(lg), 6, 6)), lg$LG)
+print(table(LG[,2]))
+lg_before_after <- cbind(as.numeric(substr(rownames(LG), 6, 6)), LG$LG)
 colnames(lg_before_after) <- c("lasius_chrom", "LG")
 
 # For each linkage group, create a table of the associated C. lasius chromosomes.
@@ -303,6 +313,10 @@ write.cross(mapthis_LG, format="csv", filestem="~/Dropbox/Costus/costus-genetic-
 # ========================================================================
 # Step 7. Investigate patterns of segregation distortion
 # ========================================================================
+
+#If we apply a Bonferroni correction for the 88 tests (88 is the total number of 
+# markers we have retained in the data), we would look for P ≥ 0.05/88 which 
+## corresponds to −log10 P ≥ 3.25
 
 gt <- geno.table(mapthis_LG, scanone.output=TRUE)
 par(mfrow=c(2,1))
