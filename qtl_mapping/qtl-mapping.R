@@ -12,9 +12,20 @@ library(formatR)
 # ========================================================================
 
 cross.data <- read.cross("csvs", genfile="~/Dropbox/Costus/costus-genetic-mapping/linkage_map/mapthis_LG.csv", 
-                         phefile="~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/costus_pheno_2024Aug16.csv", 
+                         phefile="~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/costus_pheno_rqtl_2025Jan24.csv", 
                          estimate.map=FALSE, genotypes=c("AA","AB","BB"))
 summary(cross.data)
+
+## Rename the chromosomes based on their dominant mappings to C. lasius genome
+## But remember, chr. 4 is a composite with 2 and 9, and chr. 7 is a composite with 5
+new_names <- c("2", "4", "5", "7", "3", "6", "8", "1", "9")
+names(cross.data$geno)[1:length(new_names)] <- new_names
+
+## Check that linkage groups were renamed appropriately
+chrnames(cross.data)
+
+# Reorder the geno list by sorting the names numerically
+cross.data$geno <- cross.data$geno[order(as.numeric(names(cross.data$geno)))]
 
 # ========================================================================
 # Step 2. Calculate genotype probabilities
@@ -39,10 +50,11 @@ summary(operm.hk)
 # 10% 3.31
 
 # ========================================================================
-# Step 4. QTL mapping with scanone
+# Step 4. Define functions for QTL mapping
 # ========================================================================
-## Define functions
-## Perform qtl scan
+
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
+## 1. PERFORM QTL SCAN
 perform_qtl_scan <- function(data_prob, trait_col, trait_name, f1_covar, perm_file) {
   # QTL scan using Haley-Knott regression
   scan_result <- scanone(data_prob, method = "hk", pheno.col = trait_col, addcovar = f1_covar)
@@ -59,7 +71,8 @@ perform_qtl_scan <- function(data_prob, trait_col, trait_name, f1_covar, perm_fi
   return(list(scan_result = scan_result, cutoff_lod_0.1 = cutoff_lod_0.1, cutoff_lod_0.05 = cutoff_lod_0.05))
 }
 
-## Print summary of scan
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
+## 2. PRINT SUMMARY OF SCAN
 qtl_summary <- function(scan_result, perm_data, alpha_levels = c(0.05, 0.1, 0.15)) {
   summaries <- lapply(alpha_levels, function(alpha) {
     summary(scan_result, perms = perm_data, alpha = alpha, pvalues = TRUE)
@@ -68,15 +81,19 @@ qtl_summary <- function(scan_result, perm_data, alpha_levels = c(0.05, 0.1, 0.15
   return(summaries)
 }
 
-## Plot QTL peaks
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
+## 3. PLOT QTL PEAKS
 plot_qtl_peaks <- function(scan_result, cutoff_lod, chromosomes, positions, trait_name) {
+  
+  pdf_width <- max(c(length(chromosomes) * 3, 7))
+  
   # Save plot to PDF:
-  pdf(paste0(trait_name, "_qtl_peaks.pdf"))
+  pdf(paste0(trait_name, "_qtl_peaks.pdf"), width = pdf_width)
   par(mfrow = c(1, length(chromosomes)))
   for (i in 1:length(chromosomes)) {
     plot(scan_result, chr = chromosomes[i], main = paste0("Chr", chromosomes[i], " - LOD cutoff ", round(cutoff_lod, 2)))
     abline(h = cutoff_lod, col = "red", lwd = 3)
-    abline(v = positions[chromosomes[i]], col = "green", lwd = 3)
+    abline(v = positions[i], col = "green", lwd = 3)
   }
   dev.off()
   
@@ -85,11 +102,12 @@ plot_qtl_peaks <- function(scan_result, cutoff_lod, chromosomes, positions, trai
   for (i in 1:length(chromosomes)) {
     plot(scan_result, chr = chromosomes[i], main = paste0("Chr", chromosomes[i], " - LOD cutoff ", round(cutoff_lod, 2)))
     abline(h = cutoff_lod, col = "red", lwd = 3)
-    abline(v = positions[chromosomes[i]], col = "green", lwd = 3)
+    abline(v = positions[i], col = "green", lwd = 3)
   }
 }
 
-## Extract the positions of significant peaks and save them based on LOD thresholds
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
+## 4. EXTRACT THE POSITIONS OF SIGNIFICANT PEAKS
 save_peak_positions <- function(scan_result, cutoff_lod_0.1, cutoff_lod_0.05, trait_name) {
   write.table(scan_result[scan_result$lod > cutoff_lod_0.1,], 
               file = paste0(trait_name, "_scanone-hk_peaks-above-0.1LODcutoff.tsv"), sep = "\t", quote = FALSE)
@@ -98,7 +116,8 @@ save_peak_positions <- function(scan_result, cutoff_lod_0.1, cutoff_lod_0.05, tr
               file = paste0(trait_name, "_scanone-hk_peaks-above-0.05LODcutoff.tsv"), sep = "\t", quote = FALSE)
 }
 
-## Plot QTL effects
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
+## 5. PLOT QTL EFFECTS
 plot_qtl_effects <- function(data_prob, chromosomes, positions, trait_name) {
   ## Save plot to PDF:
   pdf(paste0(trait_name, "_qtl_effect_plot.pdf"), width = 12)
@@ -123,7 +142,8 @@ plot_qtl_effects <- function(data_prob, chromosomes, positions, trait_name) {
   }
 }
 
-## Calculate LOD and Bayesian credible intervals for multiple chromosomes
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
+## 6. CALCULATE LOD AND BAYESIAN CREDIBLE INTERVALS
 calc_lod_intervals <- function(scan_result, chromosomes) {
   intervals <- list()
   for (chr in chromosomes) {
@@ -136,9 +156,9 @@ calc_lod_intervals <- function(scan_result, chromosomes) {
   return(intervals)
 }
 
-## Function: prepares data frame with chr,pos,lod columns to create manhattan plot
-#  make sure 'cutoff_lod' is set to the LOD threshold
-mh_plot_multi <-function(chr_pos_lod){
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
+## 7. PREPARE DATA TO CREATE MANHATTAN PLOT
+mh_plot_multi <-function(chr_pos_lod, cutoff_lod){
   cpl.df <- as.data.frame(chr_pos_lod)
   data_trim<-{}
   # if using non-integer chrom names (i.e. not group numbers),
@@ -158,21 +178,23 @@ mh_plot_multi <-function(chr_pos_lod){
   
 }
 
-## Generate Manhattan plots based on QTL scan results
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
+## 8. GENERATE MANHATTAN PLOTS
 plot_manhattan <- function(scanone_results, cutoff_lod, trait_name) {
   ## load the qqman manhattan plot function
   source("~/Dropbox/Costus/genetic_mapping/R:qtl/adapted_qqman.R")
   pdf(paste0(trait_name, "_manhattan_plot.pdf"), width = 10, height = 6)
-  mh_plot_multi(scanone_results)
+  mh_plot_multi(scanone_results, cutoff_lod)
   title(main = paste0(trait_name, " QTL: QTL map"))
   dev.off()
   
-  mh_plot_multi(scanone_results)
+  mh_plot_multi(scanone_results, cutoff_lod)
   title(main = paste0(trait_name, " QTL: QTL map"))
   
 }
 
-## Refine the QTL positions and fit the model with interactions
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
+## 9. REFINE THE QTL POSITIONS AND FIT THE MODEL WITH INTERACTIONS
 refine_qtl_model <- function(data_prob, trait_col, chromosomes, positions, f1_covar) {
   qtl <- makeqtl(data_prob, chr = chromosomes, pos = positions, what = "prob")
   
@@ -189,6 +211,123 @@ refine_qtl_model <- function(data_prob, trait_col, chromosomes, positions, f1_co
                     formula = y ~ Q1 + Q2 + Q3 + Q4 + Q1:Q2 + Q1:Q3 + Q1:Q4 + Q2:Q3 + Q2:Q4 + Q3:Q4 + F1parent)
   
   return(list(additive_model = out_fq, interaction_model = out_fqi, refined_positions = refined_positions))
+}
+
+# ========================================================================
+# Step 5. QTL mapping with scanone
+# ========================================================================
+
+# Load data
+F1parent <- pull.pheno(data_prob, "F1parent")
+perm_file <- "scanone_1000perm.rds"
+
+for (trait_name in names(data_prob$pheno)[25:50]) {
+
+  print(paste("Now running analyses for", trait_name))
+  
+  # QTL scan and save results
+  scan_result <- perform_qtl_scan(data_prob, trait_name, trait_name, F1parent, 
+                                  perm_file)
+  
+  # Summarize the peaks at different alpha levels
+  qtl_peaks <- qtl_summary(scan_result$scan_result, readRDS(perm_file))
+  print(qtl_peaks)
+  
+  # Skip to next trait if there aren't any significant LOD peaks
+  if (nrow(qtl_peaks$alpha_0.1) == 0) {
+    print(paste("There were no LOD peaks above the threshold for", trait_name))
+    next
+  }
+  
+  # Plot QTL peaks
+  plot_qtl_peaks(scan_result$scan_result, scan_result$cutoff_lod_0.1, 
+                 qtl_peaks$alpha_0.1$chr, qtl_peaks$alpha_0.1$pos, trait_name)
+  
+  # Extract the positions of significant peaks & save them based on LOD thresholds
+  save_peak_positions(scan_result$scan_result, scan_result$cutoff_lod_0.1, 
+                      scan_result$cutoff_lod_0.05, trait_name)
+  
+  # Calculate LOD intervals
+  lod_intervals <- calc_lod_intervals(scan_result$scan_result, chromosomes = 
+                                        qtl_peaks$alpha_0.1$chr)
+  print(lod_intervals)
+  
+  # Plot QTL effects
+  plot_qtl_effects(data_prob, chromosomes = qtl_peaks$alpha_0.1$chr, 
+                   positions = qtl_peaks$alpha_0.1$pos, trait_name = trait_name)
+  
+  # Pull out the genotype probabilities at the nearest pseudomarkers
+  qtl <- makeqtl(data_prob, chr = qtl_peaks$alpha_0.1$chr, 
+                 pos = qtl_peaks$alpha_0.1$pos, what = "prob")
+  
+  # Fit a multiple-QTL model using Haley-Knott regression (method = "hk")
+  if (length(qtl$name) == 1) {formula = "y ~ Q1 + F1parent"}
+  if (length(qtl$name) == 2) {formula = "y ~ Q1 + Q2 + F1parent"}
+  if (length(qtl$name) == 3) {formula = "y ~ Q1 + Q2 + Q3 + F1parent"}
+  if (length(qtl$name) == 4) {formula = "y ~ Q1 + Q2 + Q3 + Q4 + F1parent"}
+  if (length(qtl$name) == 5) {formula = "y ~ Q1 + Q2 + Q3 + Q4 + Q5 + F1parent"}
+  if (length(qtl$name) == 6) {formula = "y ~ Q1 + Q2 + Q3 + Q4 + Q5 + Q6 + F1parent"}
+  if (length(qtl$name) == 7) {formula = "y ~ Q1 + Q2 + Q3 + Q4 + Q5 + Q6 + Q7 + F1parent"}
+  if (length(qtl$name) == 8) {formula = "y ~ Q1 + Q2 + Q3 + Q4 + Q5 + Q6 + Q7 + Q8 + F1parent"}
+  
+  out.fq <- fitqtl(data_prob, pheno.col=trait_name, qtl=qtl, method="hk", 
+                   get.ests=TRUE, covar=as.data.frame(F1parent), 
+                   formula = formula)
+  print(summary(out.fq))
+  
+  # Determine whether there is an interaction between the two QTL by fitting the 
+  # model with the interaction
+  #out.fqi <- fitqtl(data_prob, pheno.col=trait_name, qtl=qtl, method="hk", 
+  #                  get.ests=TRUE, covar=as.data.frame(F1parent), 
+  #                  formula = y ~ Q1 + Q2 + Q3 + Q1:Q2 + Q1:Q3 + Q2:Q3 + F1parent)
+  #summary(out.fqi)
+  
+  # Also assess interaction with addint, which adds one interaction at a time
+  if (length(qtl$name) > 1) {addint(data_prob, pheno.col = trait_name, qtl=qtl, method="hk")}
+  
+  #################
+  # Refine the qtl positions
+  # each QTL is moved to the position giving the highest likelihood,
+  # and the entire process is repeated until no further improvement in likelihood
+  # can be obtained
+  rqtl <- refineqtl(data_prob, pheno.col = trait_name, qtl=qtl, method="hk")
+  rqtl
+  
+  if (length(rqtl$name) == 1) {formula = "y ~ Q1 + Q2 + F1parent"}
+  if (length(rqtl$name) == 2) {formula = "y ~ Q1 + Q2 + Q3 + F1parent"}
+  if (length(rqtl$name) == 3) {formula = "y ~ Q1 + Q2 + Q3 + Q4 + F1parent"}
+  if (length(rqtl$name) == 4) {formula = "y ~ Q1 + Q2 + Q3 + Q4 + Q5 + F1parent"}
+  
+  # Look for additional qtl, using the refined qtl positions
+  out.aq <- addqtl(data_prob, pheno.col = trait_name, qtl=rqtl, method="hk", 
+                   covar=as.data.frame(F1parent), 
+                   formula = formula)
+  
+  # Additional QTL with LOD that exceed 0.1 cutoff
+  add.qtl <- max(out.aq)
+  print(add.qtl)
+  
+  # Pull out the genotype probabilities at the nearest pseudomarkers for the 
+  # additional QTL
+  qtl <- makeqtl(data_prob, chr = as.numeric(c(rqtl$chr, as.character(add.qtl$chr))), 
+                 pos = as.numeric(c(rqtl$pos, as.character(add.qtl$pos))), what = "prob")
+  
+  if (length(qtl$name) == 1) {formula = "y ~ Q1 + F1parent"}
+  if (length(qtl$name) == 2) {formula = "y ~ Q1 + Q2 + F1parent"}
+  if (length(qtl$name) == 3) {formula = "y ~ Q1 + Q2 + Q3 + F1parent"}
+  if (length(qtl$name) == 4) {formula = "y ~ Q1 + Q2 + Q3 + Q4 + F1parent"}
+  
+  # Fit a multiple-QTL model with these new QTL added
+  out.fq <- fitqtl(data_prob, pheno.col=trait_name, qtl=qtl, method="hk", 
+                   get.ests=TRUE, covar=as.data.frame(F1parent), 
+                   formula = formula)
+  summary(out.fq)
+  
+  # Check for interactions between new and old QTL
+  addint(data_prob, pheno.col = trait_name, qtl=qtl, method="hk")
+  
+  # Perform and plot Manhattan
+  plot_manhattan(scan_result$scan_result, scan_result$cutoff_lod_0.1, trait_name)
 }
 
 
