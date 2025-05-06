@@ -84,6 +84,8 @@ newLG <- substr(names(mapthis$geno$`1`$map), 6, 6)
 # Extract the original marker data from the single linkage group
 orig_data <- mapthis$geno[[1]]$data
 orig_map <- mapthis$geno[[1]]$map
+new_map <- as.numeric(substr(names(mapthis$geno$`1`$map), 8, nchar(names(mapthis$geno$`1`$map))))
+names(new_map) <- names(orig_map)
 # Get the unique linkage groups
 uniqueLG <- sort(unique(newLG))
 # Create a new list for the genotype data by splitting markers according to newLG
@@ -93,7 +95,7 @@ newgeno <- lapply(uniqueLG, function(lg) {
   # Subset the original data and map for these markers.
   list(
     data = orig_data[, marker_indices, drop = FALSE],
-    map  = orig_map[marker_indices]
+    map  = new_map[marker_indices]
   )
 })
 names(newgeno) <- uniqueLG
@@ -108,9 +110,57 @@ gt <- geno.table(new_cross, scanone.output=TRUE)
 pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/segregation_distortion_Clasius_groups.pdf")
 par(mfrow=c(2,1))
 plot(gt, ylab=expression(paste(-log[10], " P-value")), gap=10, bandcol="gray70") # plot.scanone
-plot(gt, lod=3:5, ylab="Genotype frequency", gap=10, bandcol="gray70") # plot.scanone
+plot(gt, chr = 2, lod=3:5, ylab="Genotype frequency", gap=10, bandcol="gray70") # plot.scanone
 abline(h=c(0.25, 0.5), lty=2, col="gray")
 dev.off()
+
+## Mark translocation region on Chromosome 2
+plot(gt, type="p", xlim=c(130e6,163e6), chr = "2",lod=3:5, ylab="Genotype frequency", gap=10, bandcol="gray70", col = c("black", "blue", "red")) # plot.scanone
+abline(h=c(0.25, 0.5), lty=2, col="gray")
+abline(v=c(145249000, 156891000), lty=2, col="red")
+title(main = "Chromosome 2")
+legend("bottomleft",                # or "bottomleft", "topleft", etc.
+       legend = colnames(gt)[5:7],# text keys; use the same columns you plotted
+       col    = c("black", "blue", "red"),          # matching colours
+       lty    = 1,                # all lines use linetype 1 in plot.scanone
+       lwd    = 2,                # same line width you get from plot()
+       bty    = "n")              # drop the legend box (optional)
+
+## Mark translocation region on Chromosome 5
+plot(gt, type = "p", xlim=c(78e6, 108e6), chr = "5",lod=3:5, ylab="Genotype frequency", gap=10, bandcol="gray70", col = c("black", "blue", "red")) # plot.scanone
+abline(h=c(0.25, 0.5), lty=2, col="gray")
+abline(v=c(85210000, 91687000), lty=2, col="red")
+title(main = "Chromosome 5")
+legend("bottomright",                # or "bottomleft", "topleft", etc.
+       legend = colnames(gt)[5:7],# text keys; use the same columns you plotted
+       col    = c("black", "blue", "red"),          # matching colours
+       lty    = 1,                # all lines use linetype 1 in plot.scanone
+       lwd    = 2,                # same line width you get from plot()
+       bty    = "n")              # drop the legend box (optional)
+
+## Mark translocation region on Chromosome 9
+plot(gt, type = "p", xlim=c(74e6, 82e6), chr = "9",lod=3:5, ylab="Genotype frequency", gap=10, bandcol="gray70", col = c("black", "blue", "red")) # plot.scanone
+abline(h=c(0.25, 0.5), lty=2, col="gray")
+abline(v=c(75457000, 77619000), lty=2, col="red")
+title(main = "Chromosome 9")
+legend("bottomright",                # or "bottomleft", "topleft", etc.
+       legend = colnames(gt)[5:7],# text keys; use the same columns you plotted
+       col    = c("black", "blue", "red"),          # matching colours
+       lty    = 1,                # all lines use linetype 1 in plot.scanone
+       lwd    = 2,                # same line width you get from plot()
+       bty    = "n")              # drop the legend box (optional)
+
+## Is ancestry biased across the genome? 
+sum(gt$AA)
+# [1] 1042.686 (should be 1013)
+sum(gt$BB)
+# [1] 918.2241 (should be 1013)
+sum(gt$AB)
+# [1] 2090.09 (should be 2026)
+
+total <- sum(gt$AA) + sum(gt$AB) + sum(gt$BB)
+total/4
+# [1] 1012.75
 
 ##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
 ## 5. REMOVE MARKERS WITH SIGNALS OF DISTORTED SEGREGATION 
@@ -141,6 +191,19 @@ par(mfrow=c(1,3), las=1)
 for(i in 1:3)
   plot(gfreq[i,], ylab="Genotype frequency", main=c("AA", "AB", "BB")[i], ylim=c(0,1))
 ## One individual has 100% AB genotype, but this is OK because this is the F1
+
+gt <- geno.table(mapthis, scanone.output = TRUE)
+sum(gt$AA)
+# [1] 927.1093
+sum(gt$BB)
+# [1] 834.7141
+sum(gt$AB)
+# [1] 1871.177
+
+total <- sum(gt$AA) + sum(gt$AB) + sum(gt$BB)
+
+total/2
+# [1] 908.25
 
 # ========================================================================
 # Step 3. Form linkage groups
@@ -318,8 +381,25 @@ write.cross(mapthis_LG, format="csv", filestem="~/Dropbox/Costus/costus-genetic-
 # markers we have retained in the data), we would look for P ≥ 0.05/88 which 
 ## corresponds to −log10 P ≥ 3.25
 
+mapthis_LG <- read.cross("csv", dir = "~/Dropbox/Costus/costus-genetic-mapping/linkage_map/", 
+                         file="mapthis_LG.csv",
+                         estimate.map=FALSE, genotypes=c("AA","AB","BB"))
+
 gt <- geno.table(mapthis_LG, scanone.output=TRUE)
 par(mfrow=c(2,1))
 plot(gt, ylab=expression(paste(-log[10], " P-value")), gap=10, bandcol="gray70") # plot.scanone
 plot(gt, lod=3:5, ylab="Genotype frequency", gap=10, bandcol="gray70") # plot.scanone
 abline(h=c(0.25, 0.5), lty=2, col="gray")
+legend("bottomright",                # or "bottomleft", "topleft", etc.
+       legend = colnames(gt)[5:7],# text keys; use the same columns you plotted
+       col    = c("black", "blue", "red"),          # matching colours
+       lty    = 1,                # all lines use linetype 1 in plot.scanone
+       lwd    = 2,                # same line width you get from plot()
+       bty    = "n")              # drop the legend box (optional)
+
+
+
+
+
+
+

@@ -7,6 +7,9 @@ library(snow)
 library(formatR)
 #library(qtl2)
 
+
+setwd("~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/")
+
 # ========================================================================
 # Step 1. Read in cross data
 # ========================================================================
@@ -27,6 +30,9 @@ chrnames(cross.data)
 # Reorder the geno list by sorting the names numerically
 cross.data$geno <- cross.data$geno[order(as.numeric(names(cross.data$geno)))]
 
+# Save cross
+write.cross(cross.data, format="csv", "/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/cross.data")
+
 # ========================================================================
 # Step 2. Calculate genotype probabilities
 # ========================================================================
@@ -34,6 +40,9 @@ cross.data$geno <- cross.data$geno[order(as.numeric(names(cross.data$geno)))]
 ## step = step size (in cM) at which the probabilities are calculated
 ## error.prob = Assumed genotyping error rate
 data_prob <- calc.genoprob(cross.data, step = 2, error.prob=0)
+
+# Save cross
+write.cross(data_prob, format="csv", "/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/data_prob")
 
 # ========================================================================
 # Step 3. Run permutations to get genome-wide LOD significance thresholds
@@ -156,6 +165,52 @@ calc_lod_intervals <- function(scan_result, chromosomes) {
   return(intervals)
 }
 
+
+calc_lod_intervals <- function(scan_result, chromosomes, prob_bayes) {
+  ## -------- initialise an empty results data‑frame --------------------
+  out <- data.frame(chr      = character(),
+                    interval = character(),   # lod_1.5 | lod_2 | bayes
+                    marker   = character(),   # row‑name from scan object
+                    pos      = numeric(),
+                    lod      = numeric(),
+                    stringsAsFactors = FALSE)
+  ## -------- loop through chromosomes, collect intervals --------------
+  for (chr in chromosomes) {
+    
+    ## run the three interval functions once each
+    chr_intervals <- list(
+      lod_1.5 = lodint(scan_result, chr = chr,
+                       drop = 1.5, expandtomarkers = TRUE),
+      lod_2   = lodint(scan_result, chr = chr,
+                       drop = 2,   expandtomarkers = TRUE),
+      bayes   = bayesint(scan_result, chr = chr,
+                         prob = prob_bayes, expandtomarkers = TRUE)
+    )
+    
+    ## reshape and append to ‘out’
+    for (name in names(chr_intervals)) {
+      x <- chr_intervals[[name]]
+      out <- rbind(out,
+                   data.frame(chr      = paste0("chr", chr),
+                              interval = name,
+                              marker   = rownames(x),
+                              pos      = x$pos,
+                              lod      = x$lod,
+                              stringsAsFactors = FALSE))
+    }
+  }
+  
+  ## -------- write the TSV and exit -----------------------------------
+  write.table(out,
+              file      = paste0(trait_name, "_peak_intervals.tsv"),
+              sep       = "\t",
+              quote     = FALSE,
+              row.names = FALSE)
+  
+  invisible(NULL)                       # nothing returned / printed
+}
+
+
 ##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
 ## 7. PREPARE DATA TO CREATE MANHATTAN PLOT
 mh_plot_multi <-function(chr_pos_lod, cutoff_lod){
@@ -221,7 +276,7 @@ refine_qtl_model <- function(data_prob, trait_col, chromosomes, positions, f1_co
 F1parent <- pull.pheno(data_prob, "F1parent")
 perm_file <- "scanone_1000perm.rds"
 
-for (trait_name in names(data_prob$pheno)[25:50]) {
+for (trait_name in names(data_prob$pheno)[2:50]) {
 
   print(paste("Now running analyses for", trait_name))
   
@@ -249,8 +304,7 @@ for (trait_name in names(data_prob$pheno)[25:50]) {
   
   # Calculate LOD intervals
   lod_intervals <- calc_lod_intervals(scan_result$scan_result, chromosomes = 
-                                        qtl_peaks$alpha_0.1$chr)
-  print(lod_intervals)
+                                        qtl_peaks$alpha_0.1$chr, prob_bayes = 0.95)
   
   # Plot QTL effects
   plot_qtl_effects(data_prob, chromosomes = qtl_peaks$alpha_0.1$chr, 

@@ -1,0 +1,44 @@
+# General
+*.log
+*.tmp
+*.bak
+*.swp
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.ipynb_checkpoints/
+
+# R
+.RData
+.Rhistory
+.Rproj.user/
+.Rproj
+
+# VSCode or RStudio
+.vscode/
+*.code-workspace
+*.Rproj
+
+# Genomics data files (often large)
+*.fasta
+*.fa
+*.fastq
+*.fq
+*.vcf
+*.bam
+*.bai
+*.gz
+*.zip
+*.tar
+*.bed
+*.gff
+*.gtf
+
+# Figures
+linkage_map/plotRF.2.pdf
+linkage_map/plotRF.3.pdf
+linkage_map/plotRF.pdf
+linkage_map/LODbyRF.pdf
+
