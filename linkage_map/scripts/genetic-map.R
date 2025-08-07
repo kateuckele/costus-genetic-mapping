@@ -10,7 +10,7 @@ library(dplyr)
 # ========================================================================
 # Step 1. Read in map data
 # ========================================================================
-mapthis <- read.cross("csv", "~/Dropbox/Costus/costus-genetic-mapping/linkage_map/", "costus_gen_2025April1_unthinned.csv", estimate.map=FALSE)
+mapthis <- read.cross("csv", "~/Dropbox/Costus/costus-genetic-mapping/linkage_map/data/", "costus_gen_2025April1_unthinned.csv", estimate.map=FALSE)
 summary(mapthis)
 ## The warning message indicates that some chromosomes are greater than 1000 cM in length.
 ## This is because I have 16,000+ markers assigned to a single linkage group. 
@@ -107,7 +107,7 @@ new_cross$geno <- newgeno
 ## Create a table of genotype distributions (including P-values from chi-square tests for Mendelian segregation)
 gt <- geno.table(new_cross, scanone.output=TRUE)
 ## Plot p-values (top) and genotype frequencies (bottom)
-pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/segregation_distortion_Clasius_groups.pdf")
+pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/figures/segregation_distortion_Clasius_groups.pdf")
 par(mfrow=c(2,1))
 plot(gt, ylab=expression(paste(-log[10], " P-value")), gap=10, bandcol="gray70") # plot.scanone
 plot(gt, chr = 2, lod=3:5, ylab="Genotype frequency", gap=10, bandcol="gray70") # plot.scanone
@@ -241,7 +241,7 @@ rf <- pull.rf(mapthis)
 lod <- pull.rf(mapthis, what="lod")
 
 ## Plot LOD scores by recombination fractions
-pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/LODbyRF.pdf")
+pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/figures/LODbyRF.pdf")
 plot(as.numeric(rf), as.numeric(lod), xlab="Recombination fraction", ylab="LOD score")
 dev.off()
 
@@ -295,7 +295,7 @@ names(mapthis_LG$geno)[1:length(new_names)] <- new_names
 chrnames(mapthis_LG)
 
 ## Plot a grid showing the recombination fractions (lower triangle) and LOD scores (upper triangle) for all pairs of markers
-pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/plotRF.pdf")
+pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/figures/plotRF.pdf")
 plotRF(mapthis_LG, alternate.chrid=TRUE)
 dev.off()
 
@@ -306,7 +306,7 @@ for(marker in c10markers) {
 }
 
 ## Write the cross to a csv file
-write.cross(mapthis_LG, format="csv", filestem="~/Dropbox/Costus/costus-genetic-mapping/linkage_map/mapthis_LG")
+write.cross(mapthis_LG, format="csv", filestem="~/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/crosses/mapthis_LG")
 
 # ========================================================================
 # Step 4. Order markers on chromosomes
@@ -374,7 +374,7 @@ ggplot(df, aes(x = order, y = position, color = factor(chromosome))) +
 ##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
 
 ## Plot a grid showing the recombination fractions (lower triangle) and LOD scores (upper triangle) for all pairs of markers
-pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/plotRF.2.pdf")
+pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/figures/plotRF.2.pdf")
 plotRF(mapthis_LG, alternate.chrid=TRUE)
 dev.off()
 
@@ -409,30 +409,30 @@ mapthis_LG_copy <- mapthis_LG
 
 mapthis_LG <- replace.map(mapthis_LG, newmap)
 
-pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/plotMap.pdf")
+pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/figures/plotMap.pdf")
 plotMap(mapthis_LG, show.marker.names=FALSE)
 dev.off()
 
-pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/plotMap.4.2.9.pdf", width = 60)
+pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/figures/plotMap.4.2.9.pdf", width = 60)
 plotMap(mapthis_LG, show.marker.names=TRUE, chr = "4.2.9", horizontal = TRUE)
 dev.off()
 
-pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/plotMap.7.5.pdf", width = 60)
+pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/figures/plotMap.7.5.pdf", width = 60)
 plotMap(mapthis_LG, show.marker.names=TRUE, chr = "7.5", horizontal = TRUE)
 dev.off()
 
-## Write the cross to a csv file
-write.cross(mapthis_LG, format="csv", filestem="~/Dropbox/Costus/costus-genetic-mapping/linkage_map/mapthis_LG")
+## Overwrite the cross to a csv file
+write.cross(mapthis_LG, format="csv", filestem="~/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/crosses/mapthis_LG")
 
 # ========================================================================
 # Step 7. Investigate patterns of segregation distortion
 # ========================================================================
 
-#If we apply a Bonferroni correction for the 88 tests (88 is the total number of 
-# markers we have retained in the data), we would look for P ≥ 0.05/88 which 
-## corresponds to −log10 P ≥ 3.25
+#If we apply a Bonferroni correction for the XXX tests (XXX is the total number of 
+# markers we have retained in the data), we would look for P ≥ 0.05/XXX which 
+## corresponds to −log10 P ≥ X.XX
 
-mapthis_LG <- read.cross("csv", dir = "~/Dropbox/Costus/costus-genetic-mapping/linkage_map/", 
+mapthis_LG <- read.cross("csv", dir = "~/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/crosses/", 
                          file="mapthis_LG.csv",
                          estimate.map=FALSE, genotypes=c("AA","AB","BB"))
 

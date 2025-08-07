@@ -1,0 +1,33 @@
+Linkage map analysis workflow overview
+
+Use this document as a quick reference for what each script does and where its inputs and products live.
+
+##########################################################################################
+
+1. genetic-map.R
+
+WORK:
+1. Read in the unthinned SNP genotypes as a cross object
+2. Filter the cross data
+3. Form linkage groups
+4. Order markers along select chromosomes
+5. Investigate the number of crossovers per individual
+6. Estimate the genetic map with est.map() and write the cross to a CSV file
+7. Plot segregation distortion 
+
+INPUT DATA:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/linkage_map/data/
+- costus_gen_2025April1_unthinned.csv
+
+OUTPUT DATA:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/crosses
+- mapthis_LG.csv
+
+FIGURES:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/figures/
+- LODbyRF.pdf
+- plotRF.pdf
+- plotRF.2.pdf
+- plotMap.pdf
+- plotMap.4.2.9.pdf
+- plotMap.7.5.pdf
