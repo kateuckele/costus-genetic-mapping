@@ -2,7 +2,7 @@
 rm(list = ls())
 library(qtl)
 
-setwd("~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping")
+setwd("~/Dropbox/Costus/costus-genetic-mapping/linkage_map/")
 
 ## ---- libraries -------------------------------------------------------------
 library(purrr)      # map/imap helpers
@@ -16,9 +16,8 @@ library(ggplot2)    # plotting
 
 ## 1.  Read cross -------------------------------------------------------------
 cross <- read.cross(
-  format   = "csvs",
-  genfile  = "../linkage_map/mapthis_LG.csv",
-  phefile  = "costus_pheno_rqtl_2025Jan24.csv",
+  format   = "csv",
+  file  = "./results/crosses/mapthis_LG.csv",
   estimate.map = FALSE,
   genotypes    = c("AA","AB","BB")
 )
@@ -39,7 +38,7 @@ marker_df <- imap_dfr(cross$geno, ~{
 head(marker_df)
 
 ## ---- 4.  Plot --------------------------------------------------------------
-pdf("~/Dropbox/Costus/costus-genetic-mapping/linkage_map/plot_cM_vs_physical.pdf")
+pdf("~/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/figures/plot_cM_vs_physical.pdf")
 ggplot(marker_df, aes(x = bp/1e6, y = cM,
                       colour = factor(chr_num))) +
   geom_point(size = 0.4, alpha = 0.7) +

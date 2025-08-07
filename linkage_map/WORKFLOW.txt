@@ -31,3 +31,19 @@ stored in ~/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/figures/
 - plotMap.pdf
 - plotMap.4.2.9.pdf
 - plotMap.7.5.pdf
+
+##########################################################################################
+
+2. plot-cM-vs-physical.R
+
+WORK:
+1. read in the genetic map
+2. for each linkage group, plot genomic position in cM versus genomic position in Mb
+
+INPUT DATA:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/crosses/
+- mapthis_LG.csv
+
+FIGURES:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/linkage_map/results/figures/
+- plot_cM_vs_physical.pdf
