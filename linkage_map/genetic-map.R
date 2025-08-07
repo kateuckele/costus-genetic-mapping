@@ -176,9 +176,47 @@ gt_sig <- gt[gt$P.value < 0.05/totmar(mapthis),]
 hist(gt_sig$P.value, main="Histogram of significant p-values indicating segregation distortion")
 ## Omit the worst of these markers
 todrop <- rownames(gt[gt$P.value < 4e-6,]) ## 418 markers
+
 mapthis <- drop.markers(mapthis, todrop)
 summary(mapthis)
 ## Total markers:      3633 
+
+gt <- geno.table(mapthis, scanone.output = TRUE)
+sum(gt$AA)
+# [1] 927.1093
+sum(gt$BB)
+# [1] 834.7141
+sum(gt$AB)
+# [1] 1871.177
+
+total <- sum(gt$AA) + sum(gt$AB) + sum(gt$BB)
+total/4
+# [1] 908.25
+
+
+## What if we dropped all markers that were even mildly distorted? 
+gt <- geno.table(mapthis)
+todrop <- rownames(gt[gt$P.value < 0.05,]) ## 1154 markers
+mapthis_noSD <- drop.markers(mapthis, todrop)
+summary(mapthis_noSD)
+## Total markers:      2479
+
+gt <- geno.table(mapthis_noSD, scanone.output = TRUE)
+sum(gt$AA)
+# [1] 633.5798
+sum(gt$BB)
+# [1] 588.6103
+sum(gt$AB)
+# [1] 1256.81
+total <- sum(gt$AA) + sum(gt$AB) + sum(gt$BB)
+total/4
+# [1] 619.75
+
+##  genome-wide χ² test vs 1:2:1
+gmat   <- pull.geno(mapthis_noSD)             # matrix markers × indivs
+tableG <- table(factor(gmat, levels = 1:3))   # counts of 1,2,3 across whole matrix
+chisq.test(tableG, p = c(0.25, 0.50, 0.25))
+#>  X-squared = 1028.6, df = 2, p-value < 2.2e-16
 
 ### Plot genotype frequencies
 ## pull out raw genotype data
@@ -191,19 +229,6 @@ par(mfrow=c(1,3), las=1)
 for(i in 1:3)
   plot(gfreq[i,], ylab="Genotype frequency", main=c("AA", "AB", "BB")[i], ylim=c(0,1))
 ## One individual has 100% AB genotype, but this is OK because this is the F1
-
-gt <- geno.table(mapthis, scanone.output = TRUE)
-sum(gt$AA)
-# [1] 927.1093
-sum(gt$BB)
-# [1] 834.7141
-sum(gt$AB)
-# [1] 1871.177
-
-total <- sum(gt$AA) + sum(gt$AB) + sum(gt$BB)
-
-total/2
-# [1] 908.25
 
 # ========================================================================
 # Step 3. Form linkage groups
@@ -262,7 +287,8 @@ names(assoc_tables) <- paste0("LG", sort(unique(lg_before_after[, "LG"])))
 assoc_tables  # view the resulting tables
 
 ## Rename the linkage groups based on their associated C. lasius chromosome numbers.
-new_names <- c("2", "4.2.9", "5", "7.5", "3", "6", "8", "1", "9", "10")
+#new_names <- c("2", "4.2.9", "5", "7.5", "3", "6", "8", "1", "9", "10") # with segregation distortion filtering
+new_names <- c("2", "1.7", "5", "4.2.9", "7.5", "3", "6", "8", "9") # WITHOUT segregation distortion filtering
 names(mapthis_LG$geno)[1:length(new_names)] <- new_names
 
 ## Check that linkage groups were renamed appropriately
@@ -289,7 +315,7 @@ write.cross(mapthis_LG, format="csv", filestem="~/Dropbox/Costus/costus-genetic-
 ##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
 ## 1. ORDER MARKERS ON CHROMOSOME 4.2.9
 ## Order markers and pull the map for composite chromosome 4.2.9
-#mapthis_LG <- orderMarkers(mapthis_LG, chr = "4.2.9", window = 3)
+mapthis_LG <- orderMarkers(mapthis_LG, chr = "4.2.9", window = 3)
 df <- data.frame(
   snp = names(pull.map(mapthis_LG, chr = "4.2.9")[[1]]),
   stringsAsFactors = FALSE
@@ -308,7 +334,7 @@ ggplot(df, aes(x = order, y = position, color = factor(chromosome))) +
 ##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
 ## 2. ORDER MARKERS ON CHROMOSOME 7.5
 # Order markers and pull the map for composite chromosome 7.5
-#mapthis_LG <- orderMarkers(mapthis_LG, chr="7.5", window=3)
+mapthis_LG <- orderMarkers(mapthis_LG, chr="7.5", window=3)
 df <- data.frame(
   snp = names(pull.map(mapthis_LG, chr = "7.5")[[1]]),
   stringsAsFactors = FALSE
@@ -324,6 +350,28 @@ ggplot(df, aes(x = order, y = position, color = factor(chromosome))) +
   geom_point(size = 3) +
   labs(x = "SNP Order", y = "Position", color = "Chromosome") +
   theme_minimal()
+
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
+## 3. ORDER MARKERS ON CHROMOSOME 1.7
+# Order markers and pull the map for composite chromosome 1.7
+mapthis_LG <- orderMarkers(mapthis_LG, chr="1.7", window=3)
+df <- data.frame(
+  snp = names(pull.map(mapthis_LG, chr = "1.7")[[1]]),
+  stringsAsFactors = FALSE
+) %>%
+  mutate(
+    chromosome = as.numeric(str_extract(snp, "(?<=Chrom)\\d+")),
+    position   = as.numeric(str_extract(snp, "(?<=-)\\d+")),
+    order      = row_number()
+  )
+
+# Plot positions sequentially, colored by chromosome
+ggplot(df, aes(x = order, y = position, color = factor(chromosome))) +
+  geom_point(size = 3) +
+  labs(x = "SNP Order", y = "Position", color = "Chromosome") +
+  theme_minimal()
+
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
 
 ## Plot a grid showing the recombination fractions (lower triangle) and LOD scores (upper triangle) for all pairs of markers
 pdf("/Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/linkage_map/plotRF.2.pdf")
@@ -349,8 +397,11 @@ quantile(countXO(mapthis_LG))
 # Step 6. Estimate the genetic map
 # ========================================================================
 
-#newmap <- est.map(mapthis_LG, error.prob=0.005)
-#mapthis <- replace.map(mapthis, newmap)
+newmap <- est.map(mapthis_LG, error.prob=0.005)
+
+newmap <- est.map(mapthis_LG, error.prob=0.0001)
+
+mapthis <- replace.map(mapthis, newmap)
 summaryMap(newmap)
 
 newmap_copy <- newmap
@@ -399,6 +450,14 @@ legend("bottomright",                # or "bottomleft", "topleft", etc.
 
 
 
+plot(gt, chr = "7.5", lod=3:5, ylab="Genotype frequency", gap=10, bandcol="gray70") # plot.scanone
+abline(h=c(0.25, 0.5), lty=2, col="gray")
+legend("bottomright",                # or "bottomleft", "topleft", etc.
+       legend = colnames(gt)[5:7],# text keys; use the same columns you plotted
+       col    = c("black", "blue", "red"),          # matching colours
+       lty    = 1,                # all lines use linetype 1 in plot.scanone
+       lwd    = 2,                # same line width you get from plot()
+       bty    = "n")              # drop the legend box (optional)
 
 
 

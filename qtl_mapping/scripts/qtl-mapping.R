@@ -17,11 +17,16 @@ setwd("~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/")
 cross.data <- read.cross("csvs", genfile="../linkage_map/mapthis_LG.csv", 
                          phefile="../phenotype/results/processed_data/costus_pheno_rqtl_2025Jan24.csv", 
                          estimate.map=FALSE, genotypes=c("AA","AB","BB"))
+
+cross.data <- read.cross("csvs", genfile="../linkage_map/mapthis_no_seg_dist_filtering.csv", 
+                         phefile="../phenotype/results/processed_data/costus_pheno_rqtl_2025Jan24.csv", 
+                         estimate.map=FALSE, genotypes=c("AA","AB","BB"))
 summary(cross.data)
 
 ## Rename the chromosomes based on their dominant mappings to C. lasius genome
 ## But remember, chr. 4 is a composite with 2 and 9, and chr. 7 is a composite with 5
-new_names <- c("2", "4", "5", "7", "3", "6", "8", "1", "9")
+#new_names <- c("2", "4", "5", "7", "3", "6", "8", "1", "9")
+new_names <- c("2", "1", "5", "4", "7", "3", "6", "8", "9")
 names(cross.data$geno)[1:length(new_names)] <- new_names
 
 ## Check that linkage groups were renamed appropriately
@@ -57,6 +62,12 @@ summary(operm.hk)
 # lod
 # 5%  3.72
 # 10% 3.31
+
+data_prob_perm2 <- data_prob_perm
+data_prob_perm2$geno <- data_prob_perm2$geno["1"]
+operm2.hk <- scantwo(data_prob_perm2, method="hk", n.perm=1000, n.cluster = 6)
+#saveRDS(operm2.hk, "scantwo_1000perm.rds")
+summary(operm2.hk)
 
 # ========================================================================
 # Step 4. Define functions for QTL mapping
@@ -101,7 +112,7 @@ plot_qtl_peaks <- function(scan_result, cutoff_lod, chromosomes, positions, trai
   } else {
     nrows = 1
     ncols = length(chromosomes)
-    pdf_width == max(c(length(chromosomes) * 4, 7))
+    pdf_width = max(c(length(chromosomes) * 4, 7))
   }
   
   # Save plot to PDF:
@@ -144,7 +155,7 @@ plot_qtl_effects <- function(data_prob, chromosomes, positions, trait_name, outp
   } else {
     nrows = 1
     ncols = length(chromosomes)
-    pdf_width == max(c(length(chromosomes) * 4, 7))
+    pdf_width = max(c(length(chromosomes) * 4, 7))
   }
   
   ## Save plot to PDF:
@@ -342,6 +353,13 @@ for (trait_name in names(data_prob$pheno)[2:50]) {
                    get.ests=TRUE, covar=as.data.frame(F1parent), 
                    formula = formula)
   print(summary(out.fq))
+  
+  out.fq.summary <- summary(out.fq)
+  names <- names(out.fq.summary$result.drop[,4])
+  names(out.fq.summary$result.drop[,4]) <- NULL
+  out.fq.dataframe <- data.frame(predictors=names, PVE=out.fq.summary$result.drop[,4])
+  write.table(out.fq.dataframe, paste0("./results/data_frames/", trait_name, "_PVE.tsv"), sep="\t", quote=FALSE, row.names = FALSE)
+  
   
   # Determine whether there is an interaction between the two QTL by fitting the 
   # model with the interaction

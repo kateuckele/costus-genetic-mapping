@@ -26,10 +26,10 @@ if (!require("dplyr")) {
 # ----------------------------
 
 # Define file paths (adjust paths as necessary)
-pheno_path <- "~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/phenotypic_data_no_outliers.csv"
+pheno_path <- "~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/phenotypic_data_no_outliers_exclude_parents_F1s.csv"
 color_path <- "~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/spectral_shape_descriptors.csv"
-plant_lab_map_path <- "~/Dropbox/Costus/genetic_mapping/R:QTL/plate_prep_for_Davis.csv"
-gen_path <- "~/Dropbox/Costus/genetic_mapping/R:QTL/costus_gen_2024July23.csv"
+plant_lab_map_path <- "~/Dropbox/Costus/costus-genetic-mapping/phenotype/data/plate_prep_for_Davis.csv"
+gen_path <- "~/Dropbox/Costus/costus-genetic-mapping/phenotype/data/costus_gen_2025April1_unthinned.csv"
 
 # Read CSV files into data frames
 # It's good practice to set stringsAsFactors = FALSE to prevent automatic factor conversion
@@ -81,7 +81,7 @@ hybrids <- hybrids[!hybrids$PlantID %in% f1_hybrids_to_remove, ]
 # Identify genotyped F2s not present in the Plant-Lab-ID map
 missing_f2_samples <- gen$id[gen$id %notin% hybrids$LabID]
 print(missing_f2_samples)
-# [1] "" "" --> indicates no genotyped samples are missing
+#[1] ""       "22_030" "22_194" --> only the F1 parent (22_194) and lasius parent (22_030) are missing
 
 # ----------------------------
 # 7. Handle Duplicated LabIDs
@@ -131,7 +131,7 @@ print(nrow(hybrids))
 # 9. Reformat PlantIDs
 # ----------------------------
 
-# The PlantID format is assumed to be "F1_parent x F2_individual"
+# The PlantID format is assumed to be "F1_parent x F1_parent -F2_individual"
 # Use this format to extract the F1 parent and F2 individual numbers
 
 # Split PlantID by " x " to extract F1 parent

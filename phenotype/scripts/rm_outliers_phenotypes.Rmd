@@ -1,0 +1,559 @@
+---
+title: "phenotypes"
+output: pdf_document
+date: "2023-10-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Cleaning Phenotypes
+### K. Uckele October 10, 2023
+
+```{r libraries, echo=FALSE}
+library(googlesheets4)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(EnvStats)
+library(stringr)
+library(patchwork)  
+```
+
+# Red area (nectar guide data)
+## Load and filter data
+```{r load red area}
+redarea <- read_sheet(ss="19XHi3K57mDi2BpMPrlNOR2w16VSwV0YP6WYKYJHvuqs", sheet="red_area")
+
+#make a new column that makes a unique ID for each plant
+redarea <- mutate(redarea, unique_ID = paste0(plant_type, "_", ID))
+
+#exclude columns we don't need
+redarea <- redarea %>% dplyr::select(-date, -photo_set, -plant_type, -ID, -labellum_photo, -stamen_photo)
+
+#rename columns
+redarea <- redarea %>% dplyr::rename("RALA" = "red_labellum",
+                                   "RAST" = "red_stamen")
+
+#take a quick look at data frame
+redarea
+```
+## Collapse the replicate observations
+```{r red area collapse reps}
+#First, make a function to calculate the mode of categorical variables
+#this function will output NA if there is a tie
+Modes <- function(x) {
+  ux <- unique(na.omit(x))
+  tab <- tabulate(match(x, ux))
+  if(sum(tab == max(tab)) == 2) {NA} 
+  else {ux[tab == max(tab)]}
+}
+
+#collapse the replicates by taking means
+#first take the mean of continuous data
+redarea_by_ID <- redarea %>% group_by(unique_ID) %>% reframe(
+  tibble(
+    across(where(is.double), \(x) mean(x, na.rm = TRUE)),
+    across(where(is.character), Modes),
+    across(where(is.factor), Modes)
+  )
+)
+```
+
+## Identify potential outliers 
+```{r potential outliers red area}
+
+traits <- setdiff(names(redarea_by_ID), "unique_ID")
+
+result <- reduce(traits,           # loop over traits
+  .init = list(data = redarea_by_ID, plots = list()),
+  .f = function(acc, tr) {
+
+    dat <- acc$data
+    vec <- dat[[tr]]
+
+    ## 1. Rosner test – how many to remove?
+    k <- rosnerTest(vec, k = length(boxplot.stats(vec)$out))$n.outliers
+
+    ## 2. pick k single most‑extreme values
+    outs    <- boxplot.stats(vec)$out
+    center  <- median(vec, na.rm = TRUE)
+    extreme <- outs[order(abs(outs - center), decreasing = TRUE)][seq_len(k)]
+    
+    message(sprintf("Trait %s – %d extreme values flagged (unique_IDs starting with 'P' and 'F1' kept)",
+                  tr, length(extreme)))
+
+    ## 3. save BEFORE plot
+    p_before <- ggplot(dat, aes(x = "", y = .data[[tr]])) +
+      geom_boxplot(fill = "#0c4c8a") +
+      theme_minimal() +
+      ggtitle(glue::glue("{tr}: before"))
+
+    ## 4. remove those extremes unless ID starts with P or F1
+    dat2 <- dat %>%
+      mutate(
+        {{ tr }} := if_else(
+          .data[[tr]] %in% extreme & !grepl("^(P|F1)", unique_ID),
+          NA_real_,
+          .data[[tr]]
+        )
+      )
+
+    ## 5. AFTER plot
+    p_after <- ggplot(dat2, aes(x = "", y = .data[[tr]])) +
+      geom_boxplot(fill = "#0c4c8a") +
+      theme_minimal() +
+      ggtitle(glue::glue("{tr}: after"))
+
+    ## 6. sanity‑check: Rosner should find zero now
+    if (k > 0) {
+      remaining <- rosnerTest(dat2[[tr]],
+                            k = length(extreme))$n.outliers
+      if (remaining > 0)
+      warning(glue::glue("{tr}: {remaining} outlier(s) still present"))
+    }
+    
+    ## 7. store updated data and plots
+    acc$data  <- dat2
+    acc$plots[[tr]] <- p_before | p_after
+    acc
+  })
+
+redarea_by_ID <- result$data
+plots    <- result$plots          # list of before|after panels
+
+# combine all plots into grid
+wrap_plots(plots, nrow = length(traits))   # grid of all traits
+```
+
+# Inflorescence-level data
+## Load and filter data
+```{r load inflorescence}
+#get access to google sheets
+gs4_auth(email = "kuckele@ucsc.edu")
+
+inflor <- read_sheet(
+  ss    = "19XHi3K57mDi2BpMPrlNOR2w16VSwV0YP6WYKYJHvuqs",
+  sheet = "inflorescences",
+  col_types = "??????l?l"
+) %>% 
+  # add your extra wrangling steps
+  mutate(unique_ID = paste0(plant_type, "_", ID)) %>% 
+  select(-date, -rep, -plant_type, -ID, -typeID) %>% 
+  # convert the two visibility flags to factors 
+  #mutate(across(c(visible_EFnectar, visible_guides), as.factor)) %>%
+  dplyr::rename("INFA" = "infl_angle",
+                "VEFN" = "visible_EFnectar",
+                "CAL" = "callus_length",
+                "VNG" = "visible_guides")
+
+#take a quick look at data frame
+inflor
+```
+## Collapse the replicate observations
+```{r inflor collapse reps}
+#collapse the replicates by taking means and modes
+#take the mean of continuous data and the mode of the factors and characters
+inflor_by_ID <- inflor %>% 
+  group_by(unique_ID) %>% 
+  summarise(
+    across(where(is.double),   ~ mean(.x, na.rm = TRUE)),  # numeric columns
+    across(where(is.character), Modes),                    # your custom mode fn
+    across(where(is.logical), Modes),                      # your custom mode fn
+    .groups = "drop"                                       # ungroups automatically
+  )
+```
+
+## Fill in VNG based on red area data
+```{r impute VNG}
+# Join the two data frames by the unique_ID column
+inflor_by_ID <- inflor_by_ID %>%
+  left_join(redarea_by_ID, by = "unique_ID") %>%
+  mutate(VNG = case_when(
+    is.na(VNG) & (RAST > 0 | RALA > 0) ~ TRUE,
+    is.na(VNG) & RAST == 0 & RALA == 0 ~ FALSE,
+    TRUE ~ VNG  # Keep the original value if the condition is not met
+  )) %>%
+  # Remove the columns from redarea_by_ID if no longer needed
+  select(-RAST, -RALA)
+```
+
+## Identify potential outliers
+```{r inflor outliers}
+
+traits <- setdiff(names(inflor_by_ID), c("unique_ID", "VEFN", "VNG"))
+
+result <- reduce(traits,           # loop over traits
+  .init = list(data = inflor_by_ID, plots = list()),
+  .f = function(acc, tr) {
+
+    dat <- acc$data
+    vec <- dat[[tr]]
+
+    ## 1. Rosner test – how many to remove?
+    k <- rosnerTest(vec, k = length(boxplot.stats(vec)$out))$n.outliers
+
+    ## 2. pick k single most‑extreme values
+    outs    <- boxplot.stats(vec)$out
+    center  <- median(vec, na.rm = TRUE)
+    extreme <- outs[order(abs(outs - center), decreasing = TRUE)][seq_len(k)]
+    
+    message(sprintf("\n\nTrait %s – %d extreme values flagged (unique_IDs starting with 'P' and 'F1' kept)",
+                  tr, length(extreme)))
+
+    ## 3. save BEFORE plot
+    p_before <- ggplot(dat, aes(x = "", y = .data[[tr]])) +
+      geom_boxplot(fill = "#0c4c8a") +
+      theme_minimal() +
+      ggtitle(glue::glue("{tr}: before"))
+
+    ## 4. remove those extremes unless ID starts with P or F1
+    dat2 <- dat %>%
+      mutate(
+        {{ tr }} := if_else(
+          .data[[tr]] %in% extreme & !grepl("^(P|F1)", unique_ID),
+          NA_real_,
+          .data[[tr]]
+        )
+      )
+
+    ## 5. AFTER plot
+    p_after <- ggplot(dat2, aes(x = "", y = .data[[tr]])) +
+      geom_boxplot(fill = "#0c4c8a") +
+      theme_minimal() +
+      ggtitle(glue::glue("{tr}: after"))
+
+    ## 6. sanity‑check: Rosner should find zero now
+    if (k > 0) {
+      
+      # remove the parent and F1 observations from the data before testing
+      vec_keep <- dat %>%     
+      filter(!grepl("^(P|F1)", unique_ID)) %>%
+      pull({{ tr }})
+      
+      remaining <- rosnerTest(vec_keep,
+                            k = length(extreme))$n.outliers
+      if (remaining > 0)
+      warning(glue::glue("{tr}: {remaining} outlier(s) still present"))
+    }
+    
+    ## 7. store updated data and plots
+    acc$data  <- dat2
+    acc$plots[[tr]] <- p_before | p_after
+    acc
+  })
+
+inflor_by_ID <- result$data
+plots    <- result$plots          # list of before|after panels
+
+# combine all plots into grid
+wrap_plots(plots, nrow = length(traits))   # grid of all traits
+```
+
+# Flower morphology data
+## Load and filter data
+```{r load flower morph}
+flo_morph <- read_sheet(ss="19XHi3K57mDi2BpMPrlNOR2w16VSwV0YP6WYKYJHvuqs", sheet="flower_morphology")
+
+#make a new column that makes a unique ID for each plant
+flo_morph <- mutate(flo_morph, unique_ID = paste0(plant_type, "_", ID))
+
+#exclude columns we don't need
+flo_morph <- flo_morph %>% dplyr::select(-date, -plant_type, -ID, -rep)
+
+#rename columns
+flo_morph <- flo_morph %>% dplyr::rename("COL" = "Corolla_Length",
+                                   "COLL" = "Corolla_Lobe_Length",
+                                   "STAE" = "Stamen_exsertion",
+                                   "TUA" = "tube_angle",
+                                   "STATL" = "stamen_tip",
+                                   "LABL" = "Labellum_Length",
+                                   "LABW" = "Labellum_Width",
+                                   "CLL" = "Labellum_lobe",
+                                   "STAL" = "Stamen_Length",
+                                   "STAW" = "Stamen_width",
+                                   "ANL" = "Anther_Length",
+                                   "ANW" = "Anther_width",
+                                   "STIW" = "Stigma_Width",
+                                   "STYL" = "Style_length")
+
+#quick look at data
+flo_morph
+```
+## Collapse the replicate observations
+```{r flower morph collapse reps}
+flo_morph_by_ID <- flo_morph %>% group_by(unique_ID) %>% reframe(
+  tibble(
+    across(where(is.double), \(x) mean(x, na.rm = TRUE)),
+    across(where(is.character), Modes),
+    across(where(is.factor), Modes)
+  )
+)
+```
+
+## Identify potential outliers 
+```{r potential outliers flower morph}
+
+traits <- setdiff(names(flo_morph_by_ID), c("unique_ID"))
+
+result <- reduce(traits,           # loop over traits
+  .init = list(data = flo_morph_by_ID, plots = list()),
+  .f = function(acc, tr) {
+
+    dat <- acc$data
+    
+    #vec <- dat[[tr]]
+    
+    vec <- dat %>%                       # rows that CAN be tested/removed
+      filter(!grepl("^(P|F1)", unique_ID)) %>%
+      pull({{ tr }})
+
+    ## 1. Rosner test – how many to remove?
+    if (length(boxplot.stats(vec)$out) == 0) {
+      test.k <- 1
+    } else {
+      test.k <- length(boxplot.stats(vec)$out)
+    }
+    
+    k <- rosnerTest(vec, k = test.k)$n.outliers
+
+    ## 2. pick k single most‑extreme values
+    outs    <- boxplot.stats(vec)$out
+    center  <- median(vec, na.rm = TRUE)
+    extreme <- outs[order(abs(outs - center), decreasing = TRUE)][seq_len(k)]
+    
+    message(sprintf("\n\nTrait %s – %d extreme values flagged (unique_IDs starting with 'P' and 'F1' kept)",
+                  tr, length(extreme)))
+
+    ## 3. save BEFORE plot
+    p_before <- ggplot(dat, aes(x = "", y = .data[[tr]])) +
+      geom_boxplot(fill = "#0c4c8a") +
+      theme_minimal() +
+      ggtitle(glue::glue("{tr}: before"))
+
+    ## 4. remove those extremes unless ID starts with P or F1
+    dat2 <- dat %>%
+      mutate(
+        {{ tr }} := if_else(
+          .data[[tr]] %in% extreme & !grepl("^(P|F1)", unique_ID),
+          NA_real_,
+          .data[[tr]]
+        )
+      )
+
+    ## 5. AFTER plot
+    p_after <- ggplot(dat2, aes(x = "", y = .data[[tr]])) +
+      geom_boxplot(fill = "#0c4c8a") +
+      theme_minimal() +
+      ggtitle(glue::glue("{tr}: after"))
+
+    ## 6. sanity‑check: Rosner should find zero now
+    if (k > 0) {
+      
+      # remove the parent and F1 observations from the data before testing
+      vec_keep <- dat2 %>%     
+      filter(!grepl("^(P|F1)", unique_ID)) %>%
+      pull({{ tr }})
+      
+      remaining <- rosnerTest(vec_keep,
+                            k = length(extreme))$n.outliers
+      if (remaining > 0)
+      warning(glue::glue("{tr}: {remaining} outlier(s) still present"))
+    }
+    
+    ## 7. store updated data and plots
+    acc$data  <- dat2
+    acc$plots[[tr]] <- p_before | p_after
+    acc
+  })
+
+flo_morph_by_ID <- result$data
+plots    <- result$plots          # list of before|after panels
+
+# plot each trait
+plots[1]
+plots[2]
+plots[3]
+plots[4]
+plots[5]
+plots[6]
+plots[7]
+plots[8]
+plots[9]
+plots[10]
+plots[11]
+plots[12]
+plots[13]
+plots[14]
+
+```
+
+# Nectar data
+## Load and filter data
+```{r load nectar}
+nectar <- read_sheet(ss="19XHi3K57mDi2BpMPrlNOR2w16VSwV0YP6WYKYJHvuqs", sheet="nectar")
+
+brix_density <- read.csv("~/Dropbox/Costus/costus-genetic-mapping/phenotype/data/brix_density_table.csv", header = TRUE)
+
+#make a new column that makes a unique ID for each plant
+nectar <- mutate(nectar, unique_ID = paste0(plant_type, "_", ID))
+
+#exclude columns we don't need
+nectar <- nectar %>% dplyr::select(-year, -date, -plant_type, -ID, -rep, -fl_capsize, -fl_nectarlength_mm, -fl_mg_sucrose)
+
+# calculate mass of sucrose in solution
+EFN_percent_sucrose_rounded <- round(nectar$EFN_percent_sucrose)
+
+densities <- c()
+for (i in 1:length(EFN_percent_sucrose_rounded)) {
+  density <- brix_density$Density[brix_density$Brix == EFN_percent_sucrose_rounded[i]]
+  densities <- c(densities, density)
+}
+
+EFN_H2Ovolume_mL = nectar$EFN_H2Ovolume_uL / 1000
+mass_solution <- EFN_H2Ovolume_mL * densities
+mass_sugar_grams <- (EFN_percent_sucrose_rounded/100) * mass_solution
+nectar$mass_sugar_mg <- mass_sugar_grams * 1000
+
+#exclude columns we don't need
+nectar <- nectar %>% dplyr::select(-EFN_H2Ovolume_uL, -EFN_percent_sucrose)
+
+#rename columns
+nectar <- nectar %>% dplyr::rename("VFN" = "fl_nectarvolume_uL", # volume floral nectar
+                                   "FNSC" = "fl_percent_sucrose", # percent sucrose floral nectar
+                                   "EFNSC" = "mass_sugar_mg") # mass of sucrose in mg
+
+#quick look at data
+nectar
+```
+
+## Collapse the replicate observations
+```{r nectar collapse reps}
+nectar_by_ID <- nectar %>% group_by(unique_ID) %>% reframe(
+  tibble(
+    across(where(is.double), \(x) mean(x, na.rm = TRUE)),
+    across(where(is.character), Modes),
+    across(where(is.factor), Modes)
+  )
+)
+```
+
+## Identify potential outliers 
+```{r potential outliers nectar}
+
+traits <- setdiff(names(nectar_by_ID), c("unique_ID"))
+
+result <- reduce(traits,           # loop over traits
+  .init = list(data = nectar_by_ID, plots = list()),
+  .f = function(acc, tr) {
+
+    dat <- acc$data
+    
+    #vec <- dat[[tr]]
+    
+    vec <- dat %>%                       # rows that CAN be tested/removed
+      filter(!grepl("^(P|F1)", unique_ID)) %>%
+      pull({{ tr }})
+
+    ## 1. Rosner test – how many to remove?
+    if (length(boxplot.stats(vec)$out) == 0) {
+      test.k <- 1
+    } else {
+      test.k <- length(boxplot.stats(vec)$out)
+    }
+    
+    k <- rosnerTest(vec, k = test.k)$n.outliers
+
+    ## 2. pick k single most‑extreme values
+    outs    <- boxplot.stats(vec)$out
+    center  <- median(vec, na.rm = TRUE)
+    extreme <- outs[order(abs(outs - center), decreasing = TRUE)][seq_len(k)]
+    
+    message(sprintf("\n\nTrait %s – %d extreme values flagged (unique_IDs starting with 'P' and 'F1' kept)",
+                  tr, length(extreme)))
+
+    ## 3. save BEFORE plot
+    p_before <- ggplot(dat, aes(x = "", y = .data[[tr]])) +
+      geom_boxplot(fill = "#0c4c8a") +
+      theme_minimal() +
+      ggtitle(glue::glue("{tr}: before"))
+
+    ## 4. remove those extremes unless ID starts with P or F1
+    dat2 <- dat %>%
+      mutate(
+        {{ tr }} := if_else(
+          .data[[tr]] %in% extreme & !grepl("^(P|F1)", unique_ID),
+          NA_real_,
+          .data[[tr]]
+        )
+      )
+
+    ## 5. AFTER plot
+    p_after <- ggplot(dat2, aes(x = "", y = .data[[tr]])) +
+      geom_boxplot(fill = "#0c4c8a") +
+      theme_minimal() +
+      ggtitle(glue::glue("{tr}: after"))
+
+    ## 6. sanity‑check: Rosner should find zero now
+    if (k > 0) {
+      
+      # remove the parent and F1 observations from the data before testing
+      vec_keep <- dat2 %>%     
+      filter(!grepl("^(P|F1)", unique_ID)) %>%
+      pull({{ tr }})
+      
+      remaining <- rosnerTest(vec_keep,
+                            k = length(extreme))$n.outliers
+      if (remaining > 0)
+      warning(glue::glue("{tr}: {remaining} outlier(s) still present"))
+    }
+    
+    ## 7. store updated data and plots
+    acc$data  <- dat2
+    acc$plots[[tr]] <- p_before | p_after
+    acc
+  })
+
+nectar_by_ID <- result$data
+plots    <- result$plots          # list of before|after panels
+
+# combine all plots into grid
+wrap_plots(plots, nrow = length(traits))   # grid of all traits
+```
+
+# Combine and write data
+```{r combine data}
+data <- inflor_by_ID %>% 
+  full_join(redarea_by_ID, by="unique_ID") %>%
+  full_join(flo_morph_by_ID, by="unique_ID") %>%
+  full_join(nectar_by_ID, by="unique_ID")
+
+
+write.csv(data, "~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/phenotypic_data_no_outliers_with_parents_F1s.csv", quote = FALSE, row.names = FALSE)
+```
+
+## Exclude parents and F1s
+```{r exclude parents and F1s}
+#exclude parents and F1s
+inflor_by_ID_filtered <- inflor_by_ID %>%
+  filter(!grepl("^(F1|P)", unique_ID))
+
+redarea_by_ID_filtered <- redarea_by_ID %>%
+  filter(!grepl("^(F1|P)", unique_ID))
+
+flo_morph_by_ID_filtered <- flo_morph_by_ID %>%
+  filter(!grepl("^(F1|P)", unique_ID))
+
+nectar_by_ID_filtered <- nectar_by_ID %>%
+  filter(!grepl("^(F1|P)", unique_ID))
+
+data <- inflor_by_ID_filtered %>% 
+  full_join(redarea_by_ID_filtered, by="unique_ID") %>%
+  full_join(flo_morph_by_ID_filtered, by="unique_ID") %>%
+  full_join(nectar_by_ID_filtered, by="unique_ID")
+
+
+write.csv(data, "~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/phenotypic_data_no_outliers_exclude_parents_F1s.csv", quote = FALSE, row.names = FALSE)
+
+```

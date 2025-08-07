@@ -1,0 +1,121 @@
+Phenotype-analysis workflow overview
+
+Use this document as a quick reference for what each script does and where its inputs and products live.
+
+##########################################################################################
+
+1. rm_outliers_phenotypes.Rmd
+
+WORK: 
+1. Read in data from the Google Sheet F2_phenotypes
+2. For each trait:
+	1. Collapse replicate observations
+	2. Identify and remove outliers
+3. Combine and write data to new files
+
+INPUT DATA: 
+Shared Google sheet (Costus/Genetic_mapping/lasi_brac/F2_phenotypes)
+
+OUTPUT DATA:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/ 
+	1. phenotypic_data_no_outliers_with_parents_F1s.csv 
+	2. phenotypic_data_no_outliers_exclude_parents_F1s.csv
+
+##########################################################################################
+
+2. color_analyses.Rmd
+
+WORK: 
+1. Read in data from the Google Sheet Color
+2. For visible and UV wavelengths:
+	1. Collapse replicate observations
+	2. Fix negative reflectance values
+	3. Smooth, scale, and plot spectral data
+	4. Compute spectral descriptors and plot histograms
+	5. PCAs (visible only)
+3. Vision models
+4. Merge and export data
+
+INPUT DATA: 
+Shared Google sheet (Costus/Genetic_mapping/lasi_brac/Color)
+
+OUTPUT DATA:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/
+- color_traits.csv
+
+FIGURES:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/figures/
+- Combined_Spectra_Bract_Petal_Labellum_Cbracteatus_Clasius_hybrids.pdf
+- bract_descriptors_histograms.pdf
+- petal_descriptors_histograms.pdf
+- labellum_descriptors_histograms.pdf
+- Combined_UVspectra_Bract_Petal_Labellum_Cbracteatus_Clasius_hybrids.pdf
+- bract_UV_descriptors_histograms.pdf
+- petal_UV_descriptors_histograms.pdf
+- labellum_UV_descriptors_histograms.pdf
+
+##########################################################################################
+
+3. format_phenotype_input_file_for_rqtl.R
+
+WORK: 
+1. Ensure quality and consistency of phenotype data
+2. Format the phenotype data for R/QTL
+2. Export the phenotype data as CSV
+
+INPUT DATA:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/ and ~/Dropbox/Costus/costus-genetic-mapping/phenotype/data/ 
+- phenotypic_data_no_outliers_exclude_parents_F1s.csv"
+- spectral_shape_descriptors.csv
+- plate_prep_for_Davis.csv
+- costus_gen_2025April1_unthinned.csv
+
+OUTPUT DATA:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/
+- costus_pheno_rqtl_2025Jan24.csv
+
+##########################################################################################
+
+4. calculate_correlations.R
+
+WORK:
+1. Separate morphometric and color traits
+2. For each set of traits:
+	1. Compute a correlation matrix and associated p-values 
+	2. Plot and export the correlation plot
+
+INPUT DATA:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/
+- costus_pheno_rqtl_2025Jan24.csv
+
+FIGURES:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/figures/
+- morphometric_traits_corr_plot_p_corrected.pdf
+- colormetric_traits_corr_plot_p_corrected.pdf
+
+##########################################################################################
+
+5. plotting_trait_distributions.Rmd
+
+WORK: 
+1. load phenotype data (morphometric and color traits separately)
+2. For each set of traits:
+	1. plot a histogram for each trait
+	2. combine histograms into a single plot and export
+	
+INPUT DATA: 
+stored in ~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/processed_data/
+- phenotypic_data_no_outliers_with_parents_F1s.csv
+- color_traits.csv
+
+FIGURES:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/figures/
+- morphometric_combined_histograms_with_legend.pdf
+- colormetric_combined_histograms_with_legend.pdf
+
+
+
+
+
+
+
