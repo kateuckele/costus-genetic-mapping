@@ -14,13 +14,10 @@ setwd("~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/")
 # Step 1. Read in cross data
 # ========================================================================
 
-cross.data <- read.cross("csvs", genfile="../linkage_map/mapthis_LG.csv", 
-                         phefile="../phenotype/results/processed_data/costus_pheno_rqtl_2025Jan24.csv", 
+cross.data <- read.cross("csvs", genfile="~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/data/mapthis_LG.csv", 
+                         phefile="~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/data/costus_pheno_rqtl_2025Jan24.csv", 
                          estimate.map=FALSE, genotypes=c("AA","AB","BB"))
 
-cross.data <- read.cross("csvs", genfile="../linkage_map/mapthis_no_seg_dist_filtering.csv", 
-                         phefile="../phenotype/results/processed_data/costus_pheno_rqtl_2025Jan24.csv", 
-                         estimate.map=FALSE, genotypes=c("AA","AB","BB"))
 summary(cross.data)
 
 ## Rename the chromosomes based on their dominant mappings to C. lasius genome
@@ -36,7 +33,7 @@ chrnames(cross.data)
 cross.data$geno <- cross.data$geno[order(as.numeric(names(cross.data$geno)))]
 
 # Save cross
-write.cross(cross.data, format="csv", "./results/processed_data/cross.data")
+write.cross(cross.data, format="csv", "~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/processed_data/cross.data")
 
 # ========================================================================
 # Step 2. Calculate genotype probabilities
@@ -47,7 +44,7 @@ write.cross(cross.data, format="csv", "./results/processed_data/cross.data")
 data_prob <- calc.genoprob(cross.data, step = 2, error.prob=0)
 
 # Save cross
-write.cross(data_prob, format="csv", "./results/processed_data/data_prob")
+write.cross(data_prob, format="csv", "~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/processed_data/data_prob")
 
 # ========================================================================
 # Step 3. Run permutations to get genome-wide LOD significance thresholds
@@ -56,7 +53,7 @@ write.cross(data_prob, format="csv", "./results/processed_data/data_prob")
 data_prob_perm <- data_prob
 data_prob_perm$pheno <- data_prob_perm$pheno[,2:24]
 operm.hk <- scanone(data_prob_perm, method="hk", n.perm=1000, n.cluster = 6)
-saveRDS(operm.hk, "./results/processed_data/scanone_1000perm.rds")
+saveRDS(operm.hk, "~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/processed_data/scanone_1000perm.rds")
 summary(operm.hk)
 # LOD thresholds (1002 permutations)
 # lod

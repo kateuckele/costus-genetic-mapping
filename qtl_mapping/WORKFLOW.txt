@@ -1,2 +1,90 @@
-help
+QTL map analysis workflow overview
 
+Use this document as a quick reference for what each script does and where its inputs and products live.
+
+##########################################################################################
+
+1. qtl-mapping.R
+
+WORK:
+1. Read in the linkage map and phenotype data as a cross object
+2. Rename the chromosomes based on the C. lasius genome and save cross (cross.data.csv)
+2. Calculate genotype probabilities and save cross (data_prob.csv)
+3. Run permutations and save them to RDS
+4. Define functions for QTL mapping
+5. QTL mapping with scanone()
+6. For each trait:
+	1. perform QTL scan
+	2. summarize QTL peaks
+	3. plot QTL peaks
+	4. Extract positions of significant peaks and save them
+	5. Calculate LOD intervals and save them
+	6. Plot QTL effects
+	7. Fit a multiple-QTL model and output PVE for each peak
+	8. plot genome-wide Manhattan for each trait
+
+INPUT DATA:
+symlinks in ~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/data/
+- mapthis_LG.csv
+- costus_pheno_rqtl_2025Jan24.csv
+
+OUTPUT DATA
+saved in ~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/processed_data/
+- cross.data.csv
+- data_prob.csv
+- scanone_1000perm.rds
+saved in ~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/data_frames/
+- <trait>-F1parent.scanone.hk.tsv
+- <trait>-F1parent.scanone.hk.rds
+- <trait>_scanone-hk_peaks-above-0.1LODcutoff.tsv
+- <trait>_scanone-hk_peaks-above-0.05LODcutoff.tsv
+- <trait>_peak_intervals.tsv
+- <trait>_PVE.tsv
+
+FIGURES:
+saved in ~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/figures/
+- <trait>_qtl_peaks.pdf
+- <trait>_qtl_effect_plot.pdf
+- <trait>_manhattan_plot.pdf
+
+##########################################################################################
+
+2. adapted_qqman.R
+ 
+Helper script for plotting Manhattan in qtl-mapping.R
+
+##########################################################################################
+
+3. assess-overlap.R
+
+Computes the overlap between Bayesian credible intervals for all pairs of QTLs
+
+INPUT DATA:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/data_frames/
+- <trait>_peak_intervals.tsv
+
+OUTPUT DATA: 
+stored in ~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/data_frames/
+- bayes_qtl_overlaps.tsv
+
+##########################################################################################
+
+4. plot-LOD-and-segregation-distortion.R
+
+WORK:
+1. read in cross (linkage map + phenotype data)
+2. calculate segregation distortion p-values for each marker
+3. for each trait:
+	2. run scanone()
+	3. overlay LOD curve and segregation distortion p-value curve in same plot
+
+INPUT DATA:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/data/
+- mapthis_LG.csv
+- costus_pheno_rqtl_2025Jan24.csv
+stored in ~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/processed_data/
+- scanone_1000perm.rds
+
+FIGURES:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/figures/
+- QTL_segdist_<trait>.pdf
