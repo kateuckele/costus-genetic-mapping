@@ -20,8 +20,8 @@ setwd("~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping")
 ## 1.  Read cross -------------------------------------------------------------
 cross <- read.cross(
   format   = "csvs",
-  genfile  = "../linkage_map/mapthis_LG.csv",
-  phefile  = "../phenotype/results/processed_data/costus_pheno_rqtl_2025Jan24.csv",
+  genfile  = "./data/mapthis_LG.csv",
+  phefile  = "./data/costus_pheno_rqtl_2025Jan24.csv",
   estimate.map = FALSE,
   genotypes    = c("AA","AB","BB")
 )
@@ -38,7 +38,7 @@ cross$geno <- cross$geno[ order(as.numeric(names(cross$geno))) ]
 message("Chromosomes after renaming: ", paste(chrnames(cross), collapse = ", "))
 
 ## 3.  Segregation‑distortion p‑values ---------------------------------------
-gt_tab            <- geno.table(cross, scanone.output=TRUE) # χ² test per marker
+gt_tab <- geno.table(cross, scanone.output=TRUE) # χ² test per marker
 
 ## 4.  Genotype probabilities (for completeness) -----------------------------
 cross <- calc.genoprob(cross, step = 2, error.prob = 0.001)

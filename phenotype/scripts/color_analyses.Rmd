@@ -3,13 +3,13 @@ title: "Color Analysis of Floral Tissues"
 author: "K. Uckele"
 date: "`r Sys.Date()`"
 output:
-  pdf_document:
-    toc: true
-    toc_depth: '3'
   html_document:
     toc: true
     toc_depth: 3
     number_sections: true
+  pdf_document:
+    toc: true
+    toc_depth: '3'
 ---
 
 # Introduction
@@ -137,9 +137,9 @@ labellum_spec_sm <- procspec(labellum_spec_avg, opt = "smooth", span = 0.2)
 Scale the spectral data to different reference points for comparative analysis.
 ```{r scale}
 # Scale spectra to both minimum and maximum reflectance
-bract_spec_scaleminmax <- procspec(bract_spec_sm, opt = c("min", "max"))
-petal_spec_scaleminmax <- procspec(petal_spec_sm, opt = c("min", "max"))
-labellum_spec_scaleminmax <- procspec(labellum_spec_sm, opt = c("min", "max"))
+bract_spec_scalemax <- procspec(bract_spec_sm, opt = c("max"))
+petal_spec_scalemax <- procspec(petal_spec_sm, opt = c("max"))
+labellum_spec_scalemax <- procspec(labellum_spec_sm, opt = c("max"))
 ```
 
 ## Plot Processed Spectra
@@ -147,101 +147,188 @@ Visualize the processed spectral data for each floral tissue, highlighting speci
 
 ## Define Common Plotting Parameters
 ```{r define-params}
+# duplicate the spectral data specifically for plotting
+bract_spec_plotting <- bract_spec_scalemax
+petal_spec_plotting <- petal_spec_scalemax
+labellum_spec_plotting <- labellum_spec_scalemax
+
+# Duplicate the parental columns
+bract_spec_plotting$`125.2` <- unlist(bract_spec_plotting[which(names(bract_spec_plotting) == "125")])
+bract_spec_plotting$`126.2` <- unlist(bract_spec_plotting[which(names(bract_spec_plotting) == "126")])
+bract_spec_plotting$BRAC.2 <- unlist(bract_spec_plotting[which(names(bract_spec_plotting) == "BRAC")])
+
+petal_spec_plotting$`125.2` <- unlist(petal_spec_plotting[which(names(petal_spec_plotting) == "125")])
+petal_spec_plotting$`126.2` <- unlist(petal_spec_plotting[which(names(petal_spec_plotting) == "126")])
+petal_spec_plotting$BRAC.2 <- unlist(petal_spec_plotting[which(names(petal_spec_plotting) == "BRAC")])
+
+labellum_spec_plotting$`125.2` <- unlist(labellum_spec_plotting[which(names(labellum_spec_plotting) == "125")])
+labellum_spec_plotting$`126.2` <- unlist(labellum_spec_plotting[which(names(labellum_spec_plotting) == "126")])
+labellum_spec_plotting$BRAC.2 <- unlist(labellum_spec_plotting[which(names(labellum_spec_plotting) == "BRAC")])
+
 # Define a color palette for highlighting specific samples
-highlight_colors <- c(rep("lightgrey", 170), "gold1", "gold1", "darkgreen")
+colors_bract <- spec2rgb(bract_spec_plotting)
+colors_petal <- spec2rgb(petal_spec_plotting)
+colors_labellum <- spec2rgb(labellum_spec_plotting)
+
+# Change the colors of the duplicated parentals
+colors_bract[which(names(colors_bract) == "125.2")] <- "black"
+colors_bract[which(names(colors_bract) == "126.2")] <- "black"
+colors_bract[which(names(colors_bract) == "BRAC.2")] <- "red"
+
+colors_petal[which(names(colors_petal) == "125.2")] <- "black"
+colors_petal[which(names(colors_petal) == "126.2")] <- "black"
+colors_petal[which(names(colors_petal) == "BRAC.2")] <- "red"
+
+colors_labellum[which(names(colors_labellum) == "125.2")] <- "black"
+colors_labellum[which(names(colors_labellum) == "126.2")] <- "black"
+colors_labellum[which(names(colors_labellum) == "BRAC.2")] <- "red"
 ```
 
 ## Bract Spectra Plot
 ```{r bract-spectra}
 # Order samples to highlight specific ones
 order_spec_bract <- c(
-  which(names(bract_spec_scaleminmax) == "125"),
-  which(names(bract_spec_scaleminmax) == "126"),
-  which(names(bract_spec_scaleminmax) == "BRAC")
+  which(names(bract_spec_plotting) == "125"),
+  which(names(bract_spec_plotting) == "126"),
+  which(names(bract_spec_plotting) == "BRAC"),
+  which(names(bract_spec_plotting) == "125.2"),
+  which(names(bract_spec_plotting) == "126.2"),
+  which(names(bract_spec_plotting) == "BRAC.2")
 )
 
-# Reorder columns to place highlighted samples at the end
-columns_bract <- 1:ncol(bract_spec_scaleminmax)
-order_spec_bract <- c(columns_bract[columns_bract %notin% order_spec_bract], order_spec_bract)
+order_spec_bract_col <- c(
+  which(names(colors_bract) == "125"),
+  which(names(colors_bract) == "126"),
+  which(names(colors_bract) == "BRAC"),
+  which(names(colors_bract) == "125.2"),
+  which(names(colors_bract) == "126.2"),
+  which(names(colors_bract) == "BRAC.2")
+)
 
-# Plot the spectra
-plot(bract_spec_scaleminmax[order_spec_bract], type = "o",
-     col = highlight_colors, main = "Bract Spectra",
-     xlab = "Wavelength (nm)", ylab = "Reflectance (%)")
+# Reorder columns to place highlighted samples at the beginning
+columns_bract <- 1:ncol(bract_spec_plotting)
+order_spec_bract <- c(order_spec_bract, columns_bract[columns_bract %notin% order_spec_bract])
 
-# Add a legend
-legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
-       col = c("darkgreen", "gold1"), lty = 1, cex = 0.8)
+columns_bract_color <- 1:length(colors_bract)
+order_spec_bract_col <- c(order_spec_bract_col, columns_bract_color[columns_bract_color %notin% order_spec_bract_col])
+
+# Plot
+plot(bract_spec_plotting[order_spec_bract], 
+     type = "o",
+     col = colors_bract[order_spec_bract_col], 
+     main = "Bract Spectra",
+     xlab = "Wavelength (nm)", 
+     ylab = "Reflectance (%)")
 ```
 
 ## Petal Spectra Plot
 ```{r petal-spectra}
 # Order samples to highlight specific ones
 order_spec_petal <- c(
-  which(names(petal_spec_scaleminmax) == "125"),
-  which(names(petal_spec_scaleminmax) == "126"),
-  which(names(petal_spec_scaleminmax) == "BRAC")
+  which(names(petal_spec_plotting) == "125"),
+  which(names(petal_spec_plotting) == "126"),
+  which(names(petal_spec_plotting) == "BRAC"),
+  which(names(petal_spec_plotting) == "125.2"),
+  which(names(petal_spec_plotting) == "126.2"),
+  which(names(petal_spec_plotting) == "BRAC.2")
 )
 
-# Reorder columns to place highlighted samples at the end
-columns_petal <- 1:ncol(petal_spec_scaleminmax)
-order_spec_petal <- c(columns_petal[columns_petal %notin% order_spec_petal], order_spec_petal)
+order_spec_petal_col <- c(
+  which(names(colors_petal) == "125"),
+  which(names(colors_petal) == "126"),
+  which(names(colors_petal) == "BRAC"),
+  which(names(colors_petal) == "125.2"),
+  which(names(colors_petal) == "126.2"),
+  which(names(colors_petal) == "BRAC.2")
+)
 
-# Plot the spectra
-plot(petal_spec_scaleminmax[order_spec_petal], type = "o",
-     col = highlight_colors, main = "Petal Spectra",
-     xlab = "Wavelength (nm)", ylab = "Reflectance (%)")
+# Reorder columns to place highlighted samples at the beginning
+columns_petal <- 1:ncol(petal_spec_plotting)
+order_spec_petal <- c(order_spec_petal, columns_petal[columns_petal %notin% order_spec_petal])
 
-# Add a legend
-legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
-       col = c("darkgreen", "gold1"), lty = 1, cex = 0.8)
+columns_petal_color <- 1:length(colors_petal)
+order_spec_petal_col <- c(order_spec_petal_col, columns_petal_color[columns_petal_color %notin% order_spec_petal_col])
+
+# Plot
+plot(petal_spec_plotting[order_spec_petal], 
+     type = "o",
+     col = colors_petal[order_spec_petal_col], 
+     main = "Petal Spectra",
+     xlab = "Wavelength (nm)", 
+     ylab = "Reflectance (%)")
 ```
 
 ## Labellum Spectra Plot
 ```{r labellum-spectra}
 # Order samples to highlight specific ones
 order_spec_labellum <- c(
-  which(names(labellum_spec_scaleminmax) == "125"),
-  which(names(labellum_spec_scaleminmax) == "126"),
-  which(names(labellum_spec_scaleminmax) == "BRAC")
+  which(names(labellum_spec_plotting) == "125"),
+  which(names(labellum_spec_plotting) == "126"),
+  which(names(labellum_spec_plotting) == "BRAC"),
+  which(names(labellum_spec_plotting) == "125.2"),
+  which(names(labellum_spec_plotting) == "126.2"),
+  which(names(labellum_spec_plotting) == "BRAC.2")
 )
 
-# Reorder columns to place highlighted samples at the end
-columns_labellum <- 1:ncol(labellum_spec_scaleminmax)
-order_spec_labellum <- c(columns_labellum[columns_labellum %notin% order_spec_labellum], order_spec_labellum)
+order_spec_labellum_col <- c(
+  which(names(colors_labellum) == "125"),
+  which(names(colors_labellum) == "126"),
+  which(names(colors_labellum) == "BRAC"),
+  which(names(colors_labellum) == "125.2"),
+  which(names(colors_labellum) == "126.2"),
+  which(names(colors_labellum) == "BRAC.2")
+)
 
-# Plot the spectra
-plot(labellum_spec_scaleminmax[order_spec_labellum], type = "o",
-     col = highlight_colors, main = "Labellum Spectra",
-     xlab = "Wavelength (nm)", ylab = "Reflectance (%)")
+# Reorder columns to place highlighted samples at the beginning
+columns_labellum <- 1:ncol(labellum_spec_plotting)
+order_spec_labellum <- c(order_spec_labellum, columns_labellum[columns_labellum %notin% order_spec_labellum])
 
-# Add a legend
-legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
-       col = c("darkgreen", "gold1"), lty = 1, cex = 0.8)
+columns_labellum_color <- 1:length(colors_labellum)
+order_spec_labellum_col <- c(order_spec_labellum_col, columns_labellum_color[columns_labellum_color %notin% order_spec_labellum_col])
+
+# Plot
+plot(labellum_spec_plotting[order_spec_labellum], 
+     type = "o",
+     col = colors_labellum[order_spec_labellum_col], 
+     main = "Labellum Spectra",
+     xlab = "Wavelength (nm)", 
+     ylab = "Reflectance (%)")
 ```
 
 ## Combine and Save Spectral Plots with Highlighted Parents
 ```{r save-plots}
 # Save combined spectra plots with highlighted parental samples
-pdf("./results/figures/Combined_Spectra_Bract_Petal_Labellum_Cbracteatus_Clasius_hybrids.pdf", width = 30, height = 7)
+pdf("~/Dropbox/Costus/costus-genetic-mapping/phenotype/results/figures/Combined_Spectra_Bract_Petal_Labellum_Cbracteatus_Clasius_hybrids_alternate.pdf", width = 25, height = 7)
 par(mfrow = c(1, 3))
 # Increase left margin to provide more space for y-axis labels
 par(mar = c(5, 5, 4, 2) + 0.1)  # c(bottom, left, top, right)
-plot(bract_spec_scaleminmax[order_spec_bract], type = "o", col = highlight_colors, 
-     main = "Bract spectra", xlab = "Wavelength (nm)", ylab = "Reflectance (%)",
-     cex.main = 3, cex.lab = 2.5, cex.axis = 2, lwd = 2) 
-legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
-       col = c("darkgreen", "gold1"), lty = 1, cex = 2.5, bty = "n")
-plot(petal_spec_scaleminmax[order_spec_petal], type = "o", col = highlight_colors, 
-     main = "Petal spectra", xlab = "Wavelength (nm)", ylab = "Reflectance (%)",
-     cex.main = 3, cex.lab = 2.5, cex.axis = 2, lwd = 2)
-legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
-       col = c("darkgreen", "gold1"), lty = 1, cex = 2.5, bty = "n")
-plot(labellum_spec_scaleminmax[order_spec_labellum], type = "o", col = highlight_colors, 
-     main = "Labellum spectra", xlab = "Wavelength (nm)", ylab = "Reflectance (%)",
-     cex.main = 3, cex.lab = 2.5, cex.axis = 2, lwd = 2)
-legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
-       col = c("darkgreen", "gold1"), lty = 1, cex = 2.5, bty = "n")
+plot(bract_spec_plotting[order_spec_bract], 
+     type = "o",
+     col = colors_bract[order_spec_bract_col], 
+     main = "Bract Spectra",
+     xlab = "Wavelength (nm)", 
+     ylab = "Reflectance (%)",
+     cex.main = 2.5, 
+     cex.lab = 2.5,
+     cex.axis = 2.5)
+plot(petal_spec_plotting[order_spec_petal], 
+     type = "o",
+     col = colors_petal[order_spec_petal_col], 
+     main = "Petal Spectra",
+     xlab = "Wavelength (nm)", 
+     ylab = "Reflectance (%)",
+     cex.main = 2.5, 
+     cex.lab = 2.5,
+     cex.axis = 2.5)
+plot(labellum_spec_plotting[order_spec_labellum], 
+     type = "o",
+     col = colors_labellum[order_spec_labellum_col], 
+     main = "Labellum Spectra",
+     xlab = "Wavelength (nm)", 
+     ylab = "Reflectance (%)",
+     cex.main = 2.5, 
+     cex.lab = 2.5,
+     cex.axis = 2.5)
 dev.off()
 ```
 
@@ -249,7 +336,7 @@ dev.off()
 ```{r}
 # opt = 'center' centers the spectra to have a mean reflectance of zero (thus removing brightness as a dominant variable in the PCA)
 # opt = 'bin' bins the spectra into user-defined bins
-spec.bin <- procspec(bract_spec_scaleminmax, opt = c("bin", "center"))
+spec.bin <- procspec(bract_spec_scalemax, opt = c("bin", "center"))
 
 # Transpose so wavelength are variables for the PCA
 spec.bin <- t(spec.bin)
@@ -292,7 +379,7 @@ pca_bract <- data.frame(PC1_bract=pca1$x[,1], PC2_bract=pca1$x[,2], PC3_bract=pc
 ```{r}
 # opt = 'center' centers the spectra to have a mean reflectance of zero (thus removing brightness as a dominant variable in the PCA)
 # opt = 'bin' bins the spectra into user-defined bins
-spec.bin <- procspec(petal_spec_scaleminmax, opt = c("bin", "center"))
+spec.bin <- procspec(petal_spec_scalemax, opt = c("bin", "center"))
 
 # Transpose so wavelength are variables for the PCA
 spec.bin <- t(spec.bin)
@@ -333,7 +420,7 @@ pca_petal <- data.frame(PC1_petal=pca1$x[,1], PC2_petal=pca1$x[,2], PC3_petal=pc
 ```{r}
 # opt = 'center' centers the spectra to have a mean reflectance of zero (thus removing brightness as a dominant variable in the PCA)
 # opt = 'bin' bins the spectra into user-defined bins
-spec.bin <- procspec(labellum_spec_scaleminmax, opt = c("bin", "center"))
+spec.bin <- procspec(labellum_spec_scalemax, opt = c("bin", "center"))
 
 # Transpose so wavelength are variables for the PCA
 spec.bin <- t(spec.bin)
@@ -406,7 +493,7 @@ Note: Some metrics may be sensitive to spectral noise.
 
 ```{r bract-summary}
 # Calculate spectral descriptors for bract
-summary_bract <- summary(bract_spec_scaleminmax)
+summary_bract <- summary(bract_spec_scalemax)
 
 # Remove S2 due to infinite values
 summary_bract <- summary_bract %>% select(-S2)
@@ -463,7 +550,7 @@ dev.off()
 ### Petal Summary
 ```{r petal-summary}
 # Calculate summary statistics for petal
-summary_petal <- summary(petal_spec_scaleminmax)
+summary_petal <- summary(petal_spec_scalemax)
 
 # Remove S2 due to infinite values
 summary_petal <- summary_petal %>% select(-S2)
@@ -519,7 +606,7 @@ dev.off()
 ### Labellum Summary
 ```{r labellum-summary}
 # Calculate summary statistics for labellum
-summary_labellum <- summary(labellum_spec_scaleminmax)
+summary_labellum <- summary(labellum_spec_scalemax)
 
 # Remove S2 due to infinite values
 summary_labellum <- summary_labellum %>% select(-S2)
@@ -684,9 +771,9 @@ labellum_spec_sm <- procspec(labellum_spec_avg, opt = "smooth", span = 0.2)
 Scale the spectral data to different reference points for comparative analysis.
 ```{r scale UV}
 # Scale spectra to both minimum and maximum reflectance
-bract_spec_scaleminmax_UV <- procspec(bract_spec_sm, opt = c("min", "max"))
-petal_spec_scaleminmax_UV <- procspec(petal_spec_sm, opt = c("min", "max"))
-labellum_spec_scaleminmax_UV <- procspec(labellum_spec_sm, opt = c("min", "max"))
+bract_spec_scalemax_UV <- procspec(bract_spec_sm, opt = c("min", "max"))
+petal_spec_scalemax_UV <- procspec(petal_spec_sm, opt = c("min", "max"))
+labellum_spec_scalemax_UV <- procspec(labellum_spec_sm, opt = c("min", "max"))
 ```
 
 ## Plot Processed Spectra
@@ -702,17 +789,17 @@ highlight_colors <- c(rep("lightgrey", 170), "gold1", "gold1", "darkgreen")
 ```{r bract-spectra UV}
 # Order samples to highlight specific ones
 order_spec_bract <- c(
-  which(names(bract_spec_scaleminmax_UV) == "125"),
-  which(names(bract_spec_scaleminmax_UV) == "126"),
-  which(names(bract_spec_scaleminmax_UV) == "BRAC")
+  which(names(bract_spec_scalemax_UV) == "125"),
+  which(names(bract_spec_scalemax_UV) == "126"),
+  which(names(bract_spec_scalemax_UV) == "BRAC")
 )
 
 # Reorder columns to place highlighted samples at the end
-columns_bract <- 1:ncol(bract_spec_scaleminmax_UV)
+columns_bract <- 1:ncol(bract_spec_scalemax_UV)
 order_spec_bract <- c(columns_bract[columns_bract %notin% order_spec_bract], order_spec_bract)
 
 # Plot the spectra
-plot(bract_spec_scaleminmax_UV[order_spec_bract], type = "o",
+plot(bract_spec_scalemax_UV[order_spec_bract], type = "o",
      col = highlight_colors, main = "Bract Spectra",
      xlab = "Wavelength (nm)", ylab = "Reflectance (%)")
 
@@ -725,17 +812,17 @@ legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
 ```{r petal-spectra UV}
 # Order samples to highlight specific ones
 order_spec_petal <- c(
-  which(names(petal_spec_scaleminmax_UV) == "125"),
-  which(names(petal_spec_scaleminmax_UV) == "126"),
-  which(names(petal_spec_scaleminmax_UV) == "BRAC")
+  which(names(petal_spec_scalemax_UV) == "125"),
+  which(names(petal_spec_scalemax_UV) == "126"),
+  which(names(petal_spec_scalemax_UV) == "BRAC")
 )
 
 # Reorder columns to place highlighted samples at the end
-columns_petal <- 1:ncol(petal_spec_scaleminmax_UV)
+columns_petal <- 1:ncol(petal_spec_scalemax_UV)
 order_spec_petal <- c(columns_petal[columns_petal %notin% order_spec_petal], order_spec_petal)
 
 # Plot the spectra
-plot(petal_spec_scaleminmax_UV[order_spec_petal], type = "o",
+plot(petal_spec_scalemax_UV[order_spec_petal], type = "o",
      col = highlight_colors, main = "Petal Spectra",
      xlab = "Wavelength (nm)", ylab = "Reflectance (%)")
 
@@ -748,17 +835,17 @@ legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
 ```{r labellum-spectra UV}
 # Order samples to highlight specific ones
 order_spec_labellum <- c(
-  which(names(labellum_spec_scaleminmax_UV) == "125"),
-  which(names(labellum_spec_scaleminmax_UV) == "126"),
-  which(names(labellum_spec_scaleminmax_UV) == "BRAC")
+  which(names(labellum_spec_scalemax_UV) == "125"),
+  which(names(labellum_spec_scalemax_UV) == "126"),
+  which(names(labellum_spec_scalemax_UV) == "BRAC")
 )
 
 # Reorder columns to place highlighted samples at the end
-columns_labellum <- 1:ncol(labellum_spec_scaleminmax_UV)
+columns_labellum <- 1:ncol(labellum_spec_scalemax_UV)
 order_spec_labellum <- c(columns_labellum[columns_labellum %notin% order_spec_labellum], order_spec_labellum)
 
 # Plot the spectra
-plot(labellum_spec_scaleminmax_UV[order_spec_labellum], type = "o",
+plot(labellum_spec_scalemax_UV[order_spec_labellum], type = "o",
      col = highlight_colors, main = "Labellum Spectra",
      xlab = "Wavelength (nm)", ylab = "Reflectance (%)")
 
@@ -774,17 +861,17 @@ pdf("./results/figures/Combined_UVspectra_Bract_Petal_Labellum_Cbracteatus_Clasi
 par(mfrow = c(1, 3))
 # Increase left margin to provide more space for y-axis labels
 par(mar = c(5, 5, 4, 2) + 0.1)  # c(bottom, left, top, right)
-plot(bract_spec_scaleminmax_UV[order_spec_bract], type = "o", col = highlight_colors, 
+plot(bract_spec_scalemax_UV[order_spec_bract], type = "o", col = highlight_colors, 
      main = "Bract spectra", xlab = "Wavelength (nm)", ylab = "Reflectance (%)",
      cex.main = 3, cex.lab = 2.5, cex.axis = 2, lwd = 2) 
 legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
        col = c("darkgreen", "gold1"), lty = 1, cex = 2.5, bty = "n")
-plot(petal_spec_scaleminmax_UV[order_spec_petal], type = "o", col = highlight_colors, 
+plot(petal_spec_scalemax_UV[order_spec_petal], type = "o", col = highlight_colors, 
      main = "Petal spectra", xlab = "Wavelength (nm)", ylab = "Reflectance (%)",
      cex.main = 3, cex.lab = 2.5, cex.axis = 2, lwd = 2)
 legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
        col = c("darkgreen", "gold1"), lty = 1, cex = 2.5, bty = "n")
-plot(labellum_spec_scaleminmax_UV[order_spec_labellum], type = "o", col = highlight_colors, 
+plot(labellum_spec_scalemax_UV[order_spec_labellum], type = "o", col = highlight_colors, 
      main = "Labellum spectra", xlab = "Wavelength (nm)", ylab = "Reflectance (%)",
      cex.main = 3, cex.lab = 2.5, cex.axis = 2, lwd = 2)
 legend("topleft", legend = c("C. bracteatus parent", "C. lasius parent"),
@@ -817,7 +904,7 @@ Note: Some metrics may be sensitive to spectral noise.
 
 ```{r bract-summary UV}
 # Calculate spectral descriptors for bract
-summary_bract_UV <- summary(bract_spec_scaleminmax_UV)
+summary_bract_UV <- summary(bract_spec_scalemax_UV)
 
 # Remove S2 due to infinite values
 summary_bract_UV <- summary_bract_UV %>% select(-S2)
@@ -877,7 +964,7 @@ dev.off()
 ### Petal Summary
 ```{r petal-summary UV}
 # Calculate summary statistics for petal
-summary_petal_UV <- summary(petal_spec_scaleminmax_UV)
+summary_petal_UV <- summary(petal_spec_scalemax_UV)
 
 # Remove S2 due to infinite values
 summary_petal_UV <- summary_petal_UV %>% select(-S2)
@@ -936,7 +1023,7 @@ dev.off()
 ### Labellum Summary
 ```{r labellum-summary UV}
 # Calculate summary statistics for labellum
-summary_labellum_UV <- summary(labellum_spec_scaleminmax_UV)
+summary_labellum_UV <- summary(labellum_spec_scalemax_UV)
 
 # Remove S2 due to infinite values
 summary_labellum_UV <- summary_labellum_UV %>% select(-S2)
@@ -1027,16 +1114,16 @@ colnames(summary_labellum_UV) <- c("id", "H1_UV_labellum")
 ```{r}
 # Compute Photoreceptor Quantum Catches for Birds and Bees
 ## Bract
-bract_bird_vis <- vismodel(bract_spec_scaleminmax, visual = "avg.uv", relative = TRUE)
-bract_bee_vis <- vismodel(bract_spec_scaleminmax, visual = "apis", relative = TRUE)
+bract_bird_vis <- vismodel(bract_spec_scalemax, visual = "avg.uv", relative = TRUE)
+bract_bee_vis <- vismodel(bract_spec_scalemax, visual = "apis", relative = TRUE)
 
 ## Petal
-petal_bird_vis <- vismodel(petal_spec_scaleminmax, visual = "avg.uv", relative = TRUE)
-petal_bee_vis <- vismodel(petal_spec_scaleminmax, visual = "apis", relative = TRUE)
+petal_bird_vis <- vismodel(petal_spec_scalemax, visual = "avg.uv", relative = TRUE)
+petal_bee_vis <- vismodel(petal_spec_scalemax, visual = "apis", relative = TRUE)
 
 ## Labellum
-labellum_bird_vis <- vismodel(labellum_spec_scaleminmax, visual = "avg.uv", relative = TRUE)
-labellum_bee_vis <- vismodel(labellum_spec_scaleminmax, visual = "apis", relative = TRUE)
+labellum_bird_vis <- vismodel(labellum_spec_scalemax, visual = "avg.uv", relative = TRUE)
+labellum_bee_vis <- vismodel(labellum_spec_scalemax, visual = "apis", relative = TRUE)
 
 # Convert Bird Vision Data into a Color Space
 bract_bird_colspace <- colspace(bract_bird_vis, space = "auto")
@@ -1044,14 +1131,14 @@ petal_bird_colspace <- colspace(petal_bird_vis, space = "auto")
 labellum_bird_colspace <- colspace(labellum_bird_vis, space = "auto")
 
 # Plot the Avian Color Space Representation
-plot(bract_bird_colspace, col = spec2rgb(bract_spec_scaleminmax))
-projplot(bract_bird_colspace, pch = 20, col = spec2rgb(bract_spec_scaleminmax))
+plot(bract_bird_colspace, col = spec2rgb(bract_spec_scalemax))
+projplot(bract_bird_colspace, pch = 20, col = spec2rgb(bract_spec_scalemax))
 
-plot(petal_bird_colspace, col = spec2rgb(petal_spec_scaleminmax))
-projplot(petal_bird_colspace, pch = 20, col = spec2rgb(petal_spec_scaleminmax))
+plot(petal_bird_colspace, col = spec2rgb(petal_spec_scalemax))
+projplot(petal_bird_colspace, pch = 20, col = spec2rgb(petal_spec_scalemax))
 
-plot(labellum_bird_colspace, col = spec2rgb(labellum_spec_scaleminmax))
-projplot(labellum_bird_colspace, pch = 20, col = spec2rgb(labellum_spec_scaleminmax))
+plot(labellum_bird_colspace, col = spec2rgb(labellum_spec_scalemax))
+projplot(labellum_bird_colspace, pch = 20, col = spec2rgb(labellum_spec_scalemax))
 
 # Convert Bee Vision Data into a Color Space
 bract_bee_colspace <- colspace(bract_bee_vis, space = "tri")
@@ -1059,9 +1146,9 @@ petal_bee_colspace <- colspace(petal_bee_vis, space = "tri")
 labellum_bee_colspace <- colspace(labellum_bee_vis, space = "tri")
 
 # Plot the Bee Color Space Representation
-plot(bract_bee_colspace, col = spec2rgb(bract_spec_scaleminmax))
-plot(petal_bee_colspace, col = spec2rgb(petal_spec_scaleminmax))
-plot(labellum_bee_colspace, col = spec2rgb(labellum_spec_scaleminmax))
+plot(bract_bee_colspace, col = spec2rgb(bract_spec_scalemax))
+plot(petal_bee_colspace, col = spec2rgb(petal_spec_scalemax))
+plot(labellum_bee_colspace, col = spec2rgb(labellum_spec_scalemax))
 
 # Replace 'x' with '_' in row names
 rownames(bract_bird_colspace) <- gsub("x", "_", rownames(bract_bird_colspace))

@@ -49,14 +49,14 @@ library(readr)
 library(tidyr)
 
 # Read GC content data from bedtools output
-gc_data <- read_tsv("gc_content.txt", col_names = TRUE)
+gc_data <- read_tsv("results/gc_content.txt", col_names = TRUE)
 
 # Assign column names based on bedtools nuc output
 colnames(gc_data) <- c("chr", "start", "end", "pct_at", "pct_gc", 
                        "num_A", "num_C", "num_G", "num_T", "num_N", "num_oth", "seq_len")
 
 # Read Region of Interest (ROI) BED file
-roi <- read_tsv("roi.bed", col_names = FALSE)
+roi <- read_tsv("data/roi.bed", col_names = FALSE)
 
 # Assign column names to the ROI data
 colnames(roi) <- c("chr", "roi_start", "roi_end", "roi_name")
@@ -85,7 +85,7 @@ summary_gc <- gc_data %>%
 print(summary_gc)
 
 # Save summary to a CSV file
-write.csv(summary_gc, "gc_summary_results.csv", row.names = FALSE)
+write.csv(summary_gc, "results/gc_summary_results.csv", row.names = FALSE)
 
 # Create boxplots to compare GC content across ROIs for different chromosomes
 
@@ -207,5 +207,5 @@ pairwise_results <- data.frame(
 print(pairwise_results)
 
 # Save results to CSV file
-write.csv(pairwise_results, "pairwise_gc_tests_holm_intra_chromosomal.csv", row.names = FALSE)
+write.csv(pairwise_results, "results/pairwise_gc_tests_holm_intra_chromosomal.csv", row.names = FALSE)
 

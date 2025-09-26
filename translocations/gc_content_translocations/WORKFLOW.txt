@@ -1,0 +1,58 @@
+GC Content analysis workflow overview
+
+Use this document as a quick reference for what each script does and where its inputs and products live.
+
+##########################################################################################
+
+1. quantify_GC_content.sh
+
+SUMMARY:
+This script extracts FASTA sequences for translocation regions from the C. lasius genome and calculates GC content in 100-kb windows across the genome.
+
+WORK:
+1. Set up SLURM job parameters
+2. Load required tools (samtools and bedtools)
+3. Index the reference genome FASTA with samtools faidx
+4. Uses bedtools getfasta to extract FASTA sequences defined in roi.bed and writes them to roi_sequences.fasta
+5. Generates genomic windows by dividing the genome into consecutive 100 kb windows with bedtools makewindows
+6. Calculates nucleotide composition for each 100 kb window with bedtools nuc
+
+INPUT DATA:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/translocations/gc_content_translocations/data/
+- roi.bed (BED file identifying the regions within, just outside, and far outside the translocations)
+
+OUTPUT DATA:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/translocations/gc_content_translocations/results/
+- roi_sequences.fasta (sequences of translocation regions)
+- windows.bed (genome windows)
+- gc_content.txt (GC content + base composition per window)
+
+##########################################################################################
+
+2. GC_content_analysis.R
+
+SUMMARY:
+The script classifies GC content windows into translocation regions or background, summarizes and visualizes their GC content, and performs pairwise statistical tests (with multiple-testing correction) to identify significant differences between regions within chromosomes 2, 5, 7, and 9.
+
+WORK:
+1. Reads in genome-wide GC content windows (gc_content.txt) and BED file (roi.bed) with translocation regions of interest (ROI)
+2. Defines a function to classify each GC window as belonging to a specific ROI or “Background.”
+3. Applies this function to annotate all windows.
+4. Calculates mean, median, standard deviation, and count of GC% for each ROI, and saves these results to gc_summary_results.csv
+5. Creates boxplots comparing GC% distributions across ROIs and background for chromosomes 2, 5, 7, and 9.
+6. For each chromosome, performs pairwise Wilcoxon tests (non-parametric) and t-tests (parametric) between ROIs.
+7. Adjusts all p-values using Holm–Bonferroni correction.
+8. Saves pairwise test results and significance calls to pairwise_gc_tests_holm_intra_chromosomal.csv.
+
+INPUT DATA:
+stored in ~/Dropbox/Costus/costus-genetic-mapping/translocations/gc_content_translocations/results/
+- gc_content.txt (GC content + base composition per window)
+~/Dropbox/Costus/costus-genetic-mapping/translocations/gc_content_translocations/data/
+- roi.bed (BED file identifying the regions within, just outside, and far outside the translocations)
+
+OUTPUT DATA:
+stored in
+~/Dropbox/Costus/costus-genetic-mapping/translocations/gc_content_translocations/results/
+- gc_summary_results.csv (summary stats of GC content for each region)
+- pairwise_gc_tests_holm_intra_chromosomal.csv (results of Wilcoxon and t-tests)
+
