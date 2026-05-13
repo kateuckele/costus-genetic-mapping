@@ -1,6 +1,9 @@
 ## ============================================================
-## Generate scanone() permutation RDS (multi-phenotype EM, n.perm)
-## Matches qtl-mapping-May2026.R: genoprobs, perm_pheno_cols, method="em", snow cluster.
+## Generate scanone() permutation RDS (per-trait EM, n.perm, columns cbind'd)
+## Matches qtl-mapping-May2026.R: same genoprobs, perm_pheno_cols, method="em",
+## addcovar = F1parent, and per-trait model = "binary" vs "normal" (infer_trait_model).
+## A single multitrait scanone(..., pheno.col = 1:K) without model= uses normal for all
+## columns and no addcovar — wrong null for binary traits (e.g. Inf perm LOD cutoffs for VNG).
 ##
 ## Command line (run from the qtl_mapping directory):
 ##
@@ -17,8 +20,9 @@
 ## results/processed_data/). Then point qtl-mapping-May2026.R `perm_file_in`
 ## at that file and keep `perm_pheno_cols` identical in both scripts.
 ##
-## Runtime: multi-trait 1000 permutations often ~10+ minutes (depends on CPU;
-## uses snow with n.cluster if the snow package is installed).
+## Runtime: one scanone(..., n.perm) per trait (slower than a single multitrait call, but
+## correct null); with snow, each trait still uses n.cluster workers. Often ~30+ minutes
+## for 23 traits × 1000 permutations (depends on CPU).
 ## ============================================================
 
 rm(list = ls())
@@ -47,6 +51,9 @@ genoprob_error_prob <- 0.001
 
 perm_pheno_cols <- 2:24
 
+## Must match qtl-mapping-May2026.R covar_name (addcovar in scanone).
+covar_name <- "F1parent"
+
 perm_n <- 1000L
 perm_n_cluster <- 6L
 
@@ -58,6 +65,22 @@ perm_file_out <- file.path(
 .ts <- function() format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 log_msg <- function(...) {
   cat("[", .ts(), "] ", paste0(..., collapse = ""), "\n", sep = "")
+}
+
+## Same rule as qtl-mapping-May2026.R::infer_trait_model
+infer_trait_model <- function(x) {
+  if (is.factor(x)) x <- as.character(x)
+  if (is.character(x)) {
+    suppressWarnings(xn <- as.numeric(x))
+    if (!all(is.na(xn) == is.na(x))) x <- xn
+  }
+
+  x <- x[!is.na(x)]
+  if (length(x) == 0) return("normal")
+
+  ux <- sort(unique(x))
+  if (all(ux %in% c(0, 1))) return("binary")
+  "normal"
 }
 
 ## --------------------------- Run ----------------------------
@@ -98,23 +121,51 @@ log_msg(
   paste(head(perm_cols, 5), collapse = ", "), ", …"
 )
 
-log_msg("scanone() permutations: n.perm=", perm_n, " method=em (this can take a long time) …")
-pheno_col_perm <- seq_len(ncol(data_prob_perm$pheno))
-perm_args <- list(
-  cross = data_prob_perm,
-  method = "em",
-  n.perm = perm_n,
-  pheno.col = pheno_col_perm
+if (!covar_name %in% colnames(data_prob$pheno)) {
+  stop("covar_name '", covar_name, "' is not in the cross phenotype columns.")
+}
+covar_df <- stats::setNames(
+  data.frame(pull.pheno(data_prob, covar_name), stringsAsFactors = FALSE),
+  covar_name
 )
+
+log_msg(
+  "scanone() permutations: n.perm=", perm_n,
+  " method=em, one run per trait with addcovar=", covar_name,
+  " and trait-specific model (this can take a long time) …"
+)
+
 if ("snow" %in% .packages()) {
-  perm_args$n.cluster <- perm_n_cluster
   log_msg("Using snow: n.cluster=", perm_n_cluster)
 } else {
   log_msg("snow not attached; single-machine permutations.")
 }
 
 t0 <- proc.time()
-perm_data <- do.call(scanone, perm_args)
+perm_list <- vector("list", length(perm_cols))
+for (j in seq_along(perm_cols)) {
+  trait_nm <- perm_cols[j]
+  model_j <- infer_trait_model(data_prob_perm$pheno[[j]])
+  log_msg("  [", j, "/", length(perm_cols), "] ", trait_nm, " model=", model_j, sep = "")
+  perm_args <- list(
+    cross = data_prob_perm,
+    method = "em",
+    n.perm = perm_n,
+    pheno.col = j,
+    addcovar = covar_df[[covar_name]],
+    model = model_j
+  )
+  if ("snow" %in% .packages()) {
+    perm_args$n.cluster <- perm_n_cluster
+  }
+  perm_list[[j]] <- do.call(scanone, perm_args)
+}
+
+perm_data <- do.call(cbind, perm_list)
+colnames(perm_data) <- perm_cols
+attr(perm_data, "method") <- "em"
+attr(perm_data, "type") <- attr(perm_list[[1]], "type")
+
 t1 <- proc.time()
 log_msg("Elapsed: ", signif((t1 - t0)[3], 4), " s")
 

@@ -48,10 +48,11 @@ cross_phefile <- file.path(qtl_root, "data", "costus_pheno_rqtl_2025Jan24.csv")
 
 covar_name <- "F1parent"
 
-## Must match generate_scanone_permutations.R (same perm_pheno_cols / RDS column order)
+## Must match generate_scanone_permutations.R (same perm_pheno_cols / RDS column order,
+## and per-trait model + addcovar = F1parent used when building the RDS).
 perm_file_in <- file.path(
   processed_dir,
-  "scanone_1000perm_multitrait_20260513_141534.rds"
+  "scanone_1000perm_multitrait_20260513_152510.rds"
 )
 perm_pheno_cols <- 2:24
 
@@ -109,23 +110,31 @@ safe_has_pheno <- function(cross, pheno_name) {
 }
 
 ## summary(scanone, perms=...) with addcovar can error on multi-column scanoneperm (rqtl `[` bug).
-perm_column <- function(perm_data, j) {
+## model: use trait_model when supplied so per-column perm matches scanone(..., model=trait_model)
+## after combining per-trait perm RDS (cbind drops a single global model attr).
+perm_column <- function(perm_data, j, model = NULL) {
   if (!inherits(perm_data, "scanoneperm")) {
     return(perm_data)
   }
   nr <- nrow(perm_data)
   nc <- ncol(perm_data)
   if (nc == 1L) {
+    if (!is.null(model)) {
+      out <- perm_data
+      attr(out, "model") <- model
+      return(out)
+    }
     return(perm_data)
   }
   dn <- dimnames(perm_data)
   pm <- matrix(as.numeric(perm_data), nrow = nr, ncol = nc, dimnames = dn)
   m <- pm[, j, drop = FALSE]
+  model_use <- if (!is.null(model)) model else attr(perm_data, "model")
   structure(
     m,
     class = c("scanoneperm", "matrix"),
     method = attr(perm_data, "method"),
-    model = attr(perm_data, "model"),
+    model = model_use,
     type = attr(perm_data, "type")
   )
 }
@@ -566,7 +575,7 @@ run_trait <- function(trait_col) {
     addcovar = covar_df[[covar_name]],
     model = trait_model
   )
-  perm_this <- perm_column(perm_data, j)
+  perm_this <- perm_column(perm_data, j, model = trait_model)
   scan_summary <- summary(scan_result, perms = perm_this, alpha = alpha, pvalues = TRUE)
   log_print(scan_summary, "Significant peaks:")
 

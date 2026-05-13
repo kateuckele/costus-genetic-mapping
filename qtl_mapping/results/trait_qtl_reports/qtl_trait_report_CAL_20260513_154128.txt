@@ -1,0 +1,12 @@
+[2026-05-13 15:41:28] Trait report file: /Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/trait_qtl_reports/qtl_trait_report_CAL_20260513_154128.txt
+
+---- Trait run ----
+[2026-05-13 15:41:28] trait=CAL, model=normal (auto), alpha=0.05
+[2026-05-13 15:41:28] Individuals: total=495, missing CAL=297, missing F1parent=237
+[2026-05-13 15:41:28] Permutation LOD cutoff at alpha=0.05: 3.826
+
+---- scanone ----
+[2026-05-13 15:41:28] Significant peaks:
+    There were no LOD peaks above the threshold. 
+[2026-05-13 15:41:28] No significant peaks at alpha=0.05. Ending trait pipeline early.
+[2026-05-13 15:41:28] Trait completed.
