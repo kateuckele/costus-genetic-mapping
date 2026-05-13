@@ -23,14 +23,14 @@ summary(cross.data)
 ## Rename the chromosomes based on their dominant mappings to C. lasius genome
 ## But remember, chr. 4 is a composite with 2 and 9, and chr. 7 is a composite with 5
 #new_names <- c("2", "4", "5", "7", "3", "6", "8", "1", "9")
-new_names <- c("2", "1", "5", "4", "7", "3", "6", "8", "9")
-names(cross.data$geno)[1:length(new_names)] <- new_names
+#new_names <- c("2", "1", "5", "4", "7", "3", "6", "8", "9")
+#names(cross.data$geno)[1:length(new_names)] <- new_names
 
 ## Check that linkage groups were renamed appropriately
 chrnames(cross.data)
 
 # Reorder the geno list by sorting the names numerically
-cross.data$geno <- cross.data$geno[order(as.numeric(names(cross.data$geno)))]
+#cross.data$geno <- cross.data$geno[order(as.numeric(names(cross.data$geno)))]
 
 # Save cross
 write.cross(cross.data, format="csv", "~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/processed_data/cross.data")
@@ -39,9 +39,14 @@ write.cross(cross.data, format="csv", "~/Dropbox/Costus/costus-genetic-mapping/q
 # Step 2. Calculate genotype probabilities
 # ========================================================================
 ## Calculate conditional genotype probabilities, conditional on the available marker data
+## main parameters for calc.genoprob() are step and error.prob
 ## step = step size (in cM) at which the probabilities are calculated
-## error.prob = Assumed genotyping error rate
-data_prob <- calc.genoprob(cross.data, step = 2, error.prob=0)
+## standards for step are 1-2.5 cM for scanone() and 5–10 cM for scantwo()
+## error.prob = Assumed genotyping error rate; 0.0001 is default
+## rqtl documentation uses error.prob = 0.01 and error.prob = 0.001 as examples
+data_prob <- calc.genoprob(cross.data, 
+                           step = 0.5, 
+                           error.prob=0.001)
 
 # Save cross
 write.cross(data_prob, format="csv", "~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/processed_data/data_prob")
@@ -50,15 +55,20 @@ write.cross(data_prob, format="csv", "~/Dropbox/Costus/costus-genetic-mapping/qt
 # Step 3. Run permutations to get genome-wide LOD significance thresholds
 # ========================================================================
 ## Run scanone permutations 
+## if n.perm is specified, a permutation test is performed rather than an...
+## analysis of the observed data.
+## method = 'em': classical interval-mapping approach; at each genomic position, 
+## it treats the QTL genotype as missing data and iteratively estimates the... 
+## likelihood under the mixture model.
 data_prob_perm <- data_prob
 data_prob_perm$pheno <- data_prob_perm$pheno[,2:24]
-operm.hk <- scanone(data_prob_perm, method="hk", n.perm=1000, n.cluster = 6)
+operm.hk <- scanone(data_prob_perm, method="em", n.perm=1000, n.cluster = 6)
 saveRDS(operm.hk, "~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/processed_data/scanone_1000perm.rds")
 summary(operm.hk)
-# LOD thresholds (1002 permutations)
+# LOD thresholds (1000 permutations)
 # lod
-# 5%  3.72
-# 10% 3.31
+# 5%  4.14
+# 10% 3.60
 
 data_prob_perm2 <- data_prob_perm
 data_prob_perm2$geno <- data_prob_perm2$geno["1"]
@@ -73,8 +83,9 @@ summary(operm2.hk)
 ##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~##
 ## 1. PERFORM QTL SCAN
 perform_qtl_scan <- function(data_prob, trait_col, trait_name, f1_covar, perm_file, output_path) {
-  # QTL scan using Haley-Knott regression
-  scan_result <- scanone(data_prob, method = "hk", pheno.col = trait_col, addcovar = f1_covar)
+  
+  # QTL scan using EM algorithm
+  scan_result <- scanone(data_prob, method = "em", pheno.col = trait_col, addcovar = f1_covar)
   
   # Load permutation data
   perm_data <- readRDS(perm_file)
@@ -336,7 +347,7 @@ for (trait_name in names(data_prob$pheno)[2:50]) {
   qtl <- makeqtl(data_prob, chr = qtl_peaks$alpha_0.1$chr, 
                  pos = qtl_peaks$alpha_0.1$pos, what = "prob")
   
-  # Fit a multiple-QTL model using Haley-Knott regression (method = "hk")
+  # Fit a multiple-QTL model using EM algorithm 
   if (length(qtl$name) == 1) {formula = "y ~ Q1 + F1parent"}
   if (length(qtl$name) == 2) {formula = "y ~ Q1 + Q2 + F1parent"}
   if (length(qtl$name) == 3) {formula = "y ~ Q1 + Q2 + Q3 + F1parent"}
@@ -358,7 +369,7 @@ for (trait_name in names(data_prob$pheno)[2:50]) {
   write.table(out.fq.dataframe, paste0("./results/data_frames/", trait_name, "_PVE.tsv"), sep="\t", quote=FALSE, row.names = FALSE)
   
   
-  # Determine whether there is an interaction between the two QTL by fitting the 
+  # Determine whether there is an epistatic interaction between the two QTL by fitting the 
   # model with the interaction
   #out.fqi <- fitqtl(data_prob, pheno.col=trait_name, qtl=qtl, method="hk", 
   #                  get.ests=TRUE, covar=as.data.frame(F1parent), 
