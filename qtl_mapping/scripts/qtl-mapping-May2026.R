@@ -1,9 +1,6 @@
 ## ============================================================
-## QTL mapping pipeline (R/qtl)
-## - Fully logged (console + timestamped log file)
-## - Hardened edge cases (no-QTL, missing phenos/covariate)
-## - Automated interaction selection (optional)
-## - Correct interval calculations (lodint/bayesint on scanone output)
+## QTL mapping pipeline (R/qtl): scanone, fitqtl, plots, logs
+## Permutations: run scripts/generate_scanone_permutations.R first; set perm_file_in below.
 ## ============================================================
 
 ## -------------------------- Setup ---------------------------
@@ -14,49 +11,35 @@ suppressPackageStartupMessages({
   library(qtl)
 })
 
-## Optional: only needed if you want scanone permutations parallelized via snow
-if (requireNamespace("snow", quietly = TRUE)) {
-  suppressPackageStartupMessages(library(snow))
-}
-
-## Project root (scripts, data) and results subdirs (plots, logs, tables, RDS)
 qtl_root <- path.expand("~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping")
 results_dir <- file.path(qtl_root, "results")
+processed_dir <- file.path(results_dir, "processed_data")
 plot_dir <- file.path(results_dir, "plots")
 log_dir <- file.path(results_dir, "logs")
 for (d in c(results_dir, plot_dir, log_dir)) {
   if (!dir.exists(d)) dir.create(d, recursive = TRUE)
 }
-## Working directory: trait TSVs / summary still land here unless paths say otherwise
 setwd(results_dir)
 
-## ----------------------- Configuration ----------------------
-## Traits to run:
-## - Set explicitly, e.g. c("INFA","VFN",...)
-## - Or leave NULL to run all traits in `perm_pheno_cols` (excluding the covariate).
+## ----------------------- Configuration -----------------------
+## NULL = all traits in perm_pheno_cols except covar_name; or c("INFA", ...).
 trait_cols <- NULL
 
-model <- "normal"         # "normal" or "binary"
-alpha <- 0.05             # set to 0.05 or 0.10
-
-perm_n <- 1000
-perm_n_cluster <- 6       # only used if snow is available
+alpha <- 0.05
 
 genoprob_step <- 0.5
 genoprob_error_prob <- 0.001
 
-cross_genfile <- "~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/data/mapthis_LG.csv"
-cross_phefile <- "~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/data/costus_pheno_rqtl_2025Jan24.csv"
+cross_genfile <- file.path(qtl_root, "data", "mapthis_LG.csv")
+cross_phefile <- file.path(qtl_root, "data", "costus_pheno_rqtl_2025Jan24.csv")
 
 covar_name <- "F1parent"
 
-## Permutations: generate once, re-use for all traits.
-## - Set perm_file_in to re-use stored permutations.
-## - Set perm_file_out to save generated permutations.
-perm_file_in <- "~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/processed_data/scanone_1000perm.rds"
-perm_file_out <- "~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/processed_data/scanone_1000perm.rds"
-
-## Which phenotype columns to include in permutations (mirrors your historical 2:24).
+## Must match generate_scanone_permutations.R (same perm_pheno_cols / RDS column order)
+perm_file_in <- file.path(
+  processed_dir,
+  "scanone_1000perm_multitrait_20260513_141534.rds"
+)
 perm_pheno_cols <- 2:24
 
 ## Interval parameters (reported after scanone)
@@ -206,15 +189,12 @@ pick_best_interaction <- function(int_results, alpha = 0.05) {
 }
 
 summarize_fitqtl <- function(fit, alpha = 0.05) {
-  ## fitqtl objects can vary by settings; we log what’s available and
-  ## highlight the most interpretable bits.
   out <- list()
 
   if (!is.null(fit$result.full)) out$result_full <- fit$result.full
   if (!is.null(fit$result.drop)) out$result_drop <- fit$result.drop
   if (!is.null(fit$ests) && !is.null(fit$ests$ests)) out$ests <- fit$ests$ests
 
-  ## Attempt to extract PVE if present
   pve <- NA_real_
   if (!is.null(fit$result.full)) {
     cn <- colnames(fit$result.full)
@@ -223,7 +203,7 @@ summarize_fitqtl <- function(fit, alpha = 0.05) {
   }
   out$pve <- pve
 
-  ## Attempt to extract significant terms (result.drop often has p-values)
+  ## Significant terms from drop-one table
   sig <- NULL
   if (!is.null(fit$result.drop)) {
     pcol <- intersect(c("Pvalue", "pvalue", "p.val", "pval", "Pval"), colnames(fit$result.drop))
@@ -438,39 +418,45 @@ covar_df <- stats::setNames(
   covar_name
 )
 
-## 3) Permutations (generate once; reuse for all traits)
-data_prob_perm <- data_prob
-if (max(perm_pheno_cols) > ncol(data_prob_perm$pheno)) {
+## 3) Permutations (RDS only; build with scripts/generate_scanone_permutations.R)
+if (max(perm_pheno_cols) > ncol(data_prob$pheno)) {
   stop(
     "perm_pheno_cols requests column ", max(perm_pheno_cols),
-    " but only ", ncol(data_prob_perm$pheno), " phenotype columns exist."
+    " but only ", ncol(data_prob$pheno), " phenotype columns exist."
   )
 }
-data_prob_perm$pheno <- data_prob_perm$pheno[, perm_pheno_cols, drop = FALSE]
+perm_pheno_names <- colnames(data_prob$pheno)[perm_pheno_cols]
 
-if (!is.null(perm_file_in)) {
-  if (!file.exists(perm_file_in)) {
-    stop("perm_file_in not found: ", perm_file_in)
-  }
-  cat("[", .ts(), "] Loading permutation results from: ", perm_file_in, "\n", sep = "")
-  perm_data <- readRDS(perm_file_in)
-} else {
-  cat("[", .ts(), "] Generating permutations: n.perm=", perm_n, "\n", sep = "")
-  perm_args <- list(cross = data_prob_perm, method = "em", n.perm = perm_n)
-  if ("snow" %in% .packages()) perm_args$n.cluster <- perm_n_cluster
-  perm_data <- do.call(scanone, perm_args)
+if (!file.exists(perm_file_in)) {
+  stop("Permutation RDS not found: ", perm_file_in)
+}
+cat("[", .ts(), "] Loading permutations: ", perm_file_in, "\n", sep = "")
+perm_data <- readRDS(perm_file_in)
 
-  if (!is.null(perm_file_out)) {
-    saveRDS(perm_data, perm_file_out)
-    cat("[", .ts(), "] Saved permutations to: ", perm_file_out, "\n", sep = "")
-  }
+perm_nc <- ncol(perm_data)
+if (perm_nc != length(perm_pheno_names)) {
+  stop(
+    "Permutation columns (", perm_nc, ") != length(perm_pheno_cols) (",
+    length(perm_pheno_names), "). Use an RDS built with the same perm_pheno_cols, ",
+    "or regenerate with scripts/generate_scanone_permutations.R."
+  )
+}
+pnc <- colnames(perm_data)
+if (is.null(pnc)) {
+  stop("perm_data has no colnames(); expected one column name per trait in perm_pheno_cols.")
+}
+if (!identical(as.character(pnc), as.character(perm_pheno_names))) {
+  stop(
+    "colnames(perm_data) do not match colnames(data_prob$pheno)[perm_pheno_cols]. ",
+    "Regenerate the RDS or fix perm_pheno_cols / phenotype table order."
+  )
 }
 
-## Your intended cutoff extraction (vectors across phenotypes)
+cat("[", .ts(), "] Permutation matrix: ", nrow(perm_data), " x ", ncol(perm_data),
+    " (traits=", length(perm_pheno_names), ")\n", sep = "")
+
 cutoff_lod_0.10 <- summary(perm_data)[c("10%"), ]
 cutoff_lod_0.05 <- summary(perm_data)[c("5%"), ]
-## Column order matches perm_pheno_cols (used when indexing per-trait thresholds)
-perm_pheno_names <- colnames(data_prob$pheno)[perm_pheno_cols]
 
 ## Determine which traits to run
 traits_from_perm_cols <- perm_pheno_names
@@ -507,28 +493,21 @@ run_trait <- function(trait_col) {
   log_section("Trait run")
   trait_model <- infer_trait_model(data_prob$pheno[[trait_col]])
   log_msg("trait=", trait_col, ", model=", trait_model, " (auto), alpha=", alpha)
-  log_msg("Permutation cutoff vectors available: 5% and 10% (across phenotypes).")
 
-  ## Missingness summary (pre-empt the “Dropping N individuals” warnings)
+  ## Missingness summary
   n_total <- nind(data_prob)
   n_miss_trait <- sum(is.na(data_prob$pheno[[trait_col]]))
   n_miss_covar <- sum(is.na(covar_df[[covar_name]]))
   log_msg("Individuals: total=", n_total, ", missing ", trait_col, "=", n_miss_trait, ", missing ", covar_name, "=", n_miss_covar)
 
-  ## Permutation cutoff for plotting (index matches perm scan when multiple phenotypes)
-  cutoff_vec <- if (isTRUE(all.equal(alpha, 0.10))) cutoff_lod_0.10 else cutoff_lod_0.05
-  cutoff_vec <- as.numeric(cutoff_vec)
-  if (length(cutoff_vec) == 1L) {
-    cutoff_trait <- cutoff_vec
-  } else {
-    j <- match(as.character(trait_col), perm_pheno_names)
-    if (is.na(j)) {
-      log_msg("WARNING: trait not in perm_pheno_names; using first permutation LOD threshold.")
-      cutoff_trait <- cutoff_vec[1L]
-    } else {
-      cutoff_trait <- cutoff_vec[j]
-    }
+  cutoff_vec <- as.numeric(
+    if (isTRUE(all.equal(alpha, 0.10))) cutoff_lod_0.10 else cutoff_lod_0.05
+  )
+  j <- match(as.character(trait_col), perm_pheno_names)
+  if (is.na(j)) {
+    stop("trait ", trait_col, " is not in perm_pheno_names (perm RDS column set).")
   }
+  cutoff_trait <- cutoff_vec[j]
   log_msg("Permutation LOD cutoff at alpha=", alpha, ": ", signif(cutoff_trait, 4))
 
   ## 4) scanone
