@@ -1,6 +1,16 @@
 ## ============================================================
-## QTL mapping pipeline (R/qtl): scanone, fitqtl, plots, logs
+## QTL mapping pipeline (R/qtl): scanone, fitqtl, plots, outputs
+## Outputs: plots → results/plots; runtime tee logs → results/logs; per-trait transcripts →
+##   results/trait_qtl_reports/*.txt; peak interval tables →
+##   results/peak_intervals/<YYYYMMDD_alpha*/*.tsv (one subfolder per date×alpha; same day+alpha overwrites)
 ## Permutations: run scripts/generate_scanone_permutations.R first; set perm_file_in below.
+##
+## How to run (terminal): from the qtl_mapping directory (the folder that contains scripts/ and results/),
+##   mkdir -p results/logs
+##   Rscript scripts/qtl-mapping-May2026.R
+## Optional — save a full run transcript under results/logs/:
+##   Rscript scripts/qtl-mapping-May2026.R 2>&1 | tee results/logs/qtl-mapping-May2026_$(date +%Y%m%d_%H%M%S).log
+## Paths inside the script use qtl_root below; adjust qtl_root if your clone is not under ~/Dropbox/...
 ## ============================================================
 
 ## -------------------------- Setup ---------------------------
@@ -16,7 +26,10 @@ results_dir <- file.path(qtl_root, "results")
 processed_dir <- file.path(results_dir, "processed_data")
 plot_dir <- file.path(results_dir, "plots")
 log_dir <- file.path(results_dir, "logs")
-for (d in c(results_dir, plot_dir, log_dir)) {
+## Per-trait sink() transcripts (scanone, fitqtl, etc.): plain text, not runtime logs.
+trait_report_dir <- file.path(results_dir, "trait_qtl_reports")
+peak_intervals_dir <- file.path(results_dir, "peak_intervals")
+for (d in c(results_dir, plot_dir, log_dir, trait_report_dir, peak_intervals_dir)) {
   if (!dir.exists(d)) dir.create(d, recursive = TRUE)
 }
 setwd(results_dir)
@@ -66,14 +79,14 @@ log_print <- function(x, label = NULL) {
 }
 
 start_trait_log <- function(trait_col) {
-  log_file <- file.path(
-    log_dir,
-    paste0("qtl_log_", trait_col, "_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".log")
+  report_file <- file.path(
+    trait_report_dir,
+    paste0("qtl_trait_report_", trait_col, "_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".txt")
   )
-  sink(log_file, split = TRUE)
-  log_msg("Logging to: ", log_file)
+  sink(report_file, split = TRUE)
+  log_msg("Trait report file: ", report_file)
   list(
-    file = log_file,
+    file = report_file,
     close = function() sink()
   )
 }
@@ -93,6 +106,28 @@ make_formula_with_int <- function(n_qtl, interactions = NULL, covar_name = "F1pa
 
 safe_has_pheno <- function(cross, pheno_name) {
   !is.null(cross$pheno) && (pheno_name %in% colnames(cross$pheno))
+}
+
+## summary(scanone, perms=...) with addcovar can error on multi-column scanoneperm (rqtl `[` bug).
+perm_column <- function(perm_data, j) {
+  if (!inherits(perm_data, "scanoneperm")) {
+    return(perm_data)
+  }
+  nr <- nrow(perm_data)
+  nc <- ncol(perm_data)
+  if (nc == 1L) {
+    return(perm_data)
+  }
+  dn <- dimnames(perm_data)
+  pm <- matrix(as.numeric(perm_data), nrow = nr, ncol = nc, dimnames = dn)
+  m <- pm[, j, drop = FALSE]
+  structure(
+    m,
+    class = c("scanoneperm", "matrix"),
+    method = attr(perm_data, "method"),
+    model = attr(perm_data, "model"),
+    type = attr(perm_data, "type")
+  )
 }
 
 infer_trait_model <- function(x) {
@@ -465,6 +500,16 @@ if (is.null(trait_cols)) {
   trait_cols <- traits_from_perm_cols
 }
 
+## One subfolder per calendar date × alpha (e.g. 20260513_alpha0.05). Re-running the same
+## date and alpha replaces that folder; use a different alpha or change the clock only if you need both.
+peak_intervals_run_id <- sprintf("%s_alpha%g", format(Sys.Date(), "%Y%m%d"), alpha)
+peak_intervals_run_dir <- file.path(peak_intervals_dir, peak_intervals_run_id)
+dir.create(peak_intervals_run_dir, recursive = TRUE, showWarnings = FALSE)
+cat(
+  "[", .ts(), "] Peak interval tables (this run): ", peak_intervals_run_dir, "\n",
+  sep = ""
+)
+
 ## Summary across traits (major results only)
 all_trait_summary <- data.frame(
   trait = character(),
@@ -478,7 +523,9 @@ all_trait_summary <- data.frame(
   pve = numeric(),
   covariate_only_pve = numeric(),
   total_qtl_pve = numeric(),
-  log_file = character(),
+  trait_report_file = character(),
+  peak_intervals_run_id = character(),
+  peak_intervals_run_dir = character(),
   stringsAsFactors = FALSE
 )
 
@@ -519,7 +566,8 @@ run_trait <- function(trait_col) {
     addcovar = covar_df[[covar_name]],
     model = trait_model
   )
-  scan_summary <- summary(scan_result, perms = perm_data, alpha = alpha, pvalues = TRUE)
+  perm_this <- perm_column(perm_data, j)
+  scan_summary <- summary(scan_result, perms = perm_this, alpha = alpha, pvalues = TRUE)
   log_print(scan_summary, "Significant peaks:")
 
   ## Always report intervals right after scanone (if any peaks)
@@ -534,7 +582,7 @@ run_trait <- function(trait_col) {
     )
     log_print(intervals_df, "Intervals by chromosome (from scanone output):")
 
-    intervals_file <- file.path(getwd(), paste0(trait_col, "_peak_intervals.tsv"))
+    intervals_file <- file.path(peak_intervals_run_dir, paste0(trait_col, "_peak_intervals.tsv"))
     write.table(intervals_df, file = intervals_file, sep = "\t", quote = FALSE, row.names = FALSE)
     log_msg("Wrote intervals table to: ", intervals_file)
   } else {
@@ -675,7 +723,7 @@ run_trait <- function(trait_col) {
       data_prob, pheno.col = trait_col, qtl = rqtl, method = "hk",
       covar = covar_df, formula = current_formula
     )
-    add_summary <- summary(out_aq, perms = perm_data, alpha = alpha, pvalues = TRUE)
+    add_summary <- summary(out_aq, perms = perm_this, alpha = alpha, pvalues = TRUE)
     log_print(add_summary, "Candidate added QTL:")
 
     ## 11) plots -> write PDFs
@@ -769,7 +817,9 @@ run_trait <- function(trait_col) {
     pve = pve,
     covariate_only_pve = covariate_only_pve,
     total_qtl_pve = total_qtl_pve,
-    log_file = tl$file
+    trait_report_file = tl$file,
+    peak_intervals_run_id = peak_intervals_run_id,
+    peak_intervals_run_dir = peak_intervals_run_dir
   )
 }
 

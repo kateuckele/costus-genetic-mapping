@@ -1,0 +1,12 @@
+[2026-05-13 15:05:17] Trait report file: /Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/trait_qtl_reports/qtl_trait_report_VNG_20260513_150517.txt
+
+---- Trait run ----
+[2026-05-13 15:05:17] trait=VNG, model=binary (auto), alpha=0.05
+[2026-05-13 15:05:17] Individuals: total=495, missing VNG=300, missing F1parent=237
+[2026-05-13 15:05:17] Permutation LOD cutoff at alpha=0.05: Inf
+
+---- scanone ----
+[2026-05-13 15:05:17] Significant peaks:
+    There were no LOD peaks above the threshold. 
+[2026-05-13 15:05:17] No significant peaks at alpha=0.05. Ending trait pipeline early.
+[2026-05-13 15:05:17] Trait completed.

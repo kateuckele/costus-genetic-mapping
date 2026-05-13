@@ -1,0 +1,102 @@
+[2026-05-13 15:06:34] Trait report file: /Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/trait_qtl_reports/qtl_trait_report_FNSC_20260513_150634.txt
+
+---- Trait run ----
+[2026-05-13 15:06:34] trait=FNSC, model=normal (auto), alpha=0.05
+[2026-05-13 15:06:34] Individuals: total=495, missing FNSC=272, missing F1parent=237
+[2026-05-13 15:06:34] Permutation LOD cutoff at alpha=0.05: 3.799
+
+---- scanone ----
+[2026-05-13 15:06:34] Significant peaks:
+                chr  pos  lod    pval
+Chrom3-14345953   3 29.6 4.98 0.00599 
+[2026-05-13 15:06:34] Intervals by chromosome (from scanone output):
+   chr interval          marker       pos      lod
+1 chr3  lod_1.5  Chrom3-8824118 17.176240 3.318622
+2 chr3  lod_1.5 Chrom3-14345953 29.611256 4.979638
+3 chr3  lod_1.5 Chrom3-15872064 32.164225 3.213204
+4 chr3    lod_2  Chrom3-4595970  7.120090 2.972768
+5 chr3    lod_2 Chrom3-14345953 29.611256 4.979638
+6 chr3    lod_2 Chrom3-16766032 34.765309 2.492688
+7 chr3    bayes  Chrom3-5959921  9.705665 3.066239
+8 chr3    bayes Chrom3-14345953 29.611256 4.979638
+9 chr3    bayes Chrom3-15663890 31.506422 3.651715 
+[2026-05-13 15:06:34] Wrote intervals table to: /Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/peak_intervals/20260513_alpha0.05/FNSC_peak_intervals.tsv
+
+---- makeqtl + fitqtl ----
+[2026-05-13 15:06:34] Initial QTL count: 1
+[2026-05-13 15:06:34] Additive model formula: y ~ Q1 + F1parent
+[2026-05-13 15:06:34] Additive model PVE (if available): 9.757
+[2026-05-13 15:06:34] Drop-one table:
+         df  Type III SS         LOD        %var      F value Pvalue(Chi2)
+3@29.6    2 279.79773556 4.958520848 9.730379817 11.806803272 1.100219e-05
+F1parent  1   0.06910858 0.001289613 0.002403353  0.005832437 9.385725e-01
+            Pvalue(F)
+3@29.6   1.350272e-05
+F1parent 9.391941e-01
+attr(,"formulas")
+[1] "y ~ F1parent" "y ~ Q1"      
+attr(,"lods")
+[1] 0.01308742 4.97031865 
+
+---- Interactions (addint) ----
+[2026-05-13 15:06:34] Only one QTL; skipping addint.
+
+---- Refit (+interaction if selected) ----
+[2026-05-13 15:06:34] Final model formula: y ~ Q1 + F1parent
+[2026-05-13 15:06:34] Final model PVE (if available): 9.757
+
+---- refineqtl + refit ----
+pos: 29.61126 
+Iteration 1 
+ Q1 pos: 29.61126 -> 29.61126
+    LOD increase:  0 
+all pos: 29.61126 -> 29.61126 
+LOD increase at this iteration:  0 
+overall pos: 29.61126 -> 29.61126 
+LOD increase overall:  0 
+[2026-05-13 15:06:34] Refined QTL object:
+  QTL object containing genotype probabilities. 
+
+     name chr    pos n.gen
+Q1 3@29.6   3 29.611     3 
+[2026-05-13 15:06:34] Refined full model PVE, covariate + all QTL: 9.757
+
+---- Total QTL PVE ----
+[2026-05-13 15:06:34] Covariate-only model formula: y ~ F1parent
+[2026-05-13 15:06:34] Covariate-only PVE from fitqtl: 0.02702
+[2026-05-13 15:06:34] Covariate-only fitqtl full model table:
+       df           SS         MS        LOD       %var Pvalue(Chi2) Pvalue(F)
+Model   1    0.7770526  0.7770526 0.01308742 0.02702315    0.8060701 0.8071384
+Error 221 2874.7297707 13.0078270         NA         NA           NA        NA
+Total 222 2875.5068233         NA         NA         NA           NA        NA 
+[2026-05-13 15:06:34] Total phenotypic variance explained by all QTL (refined full model PVE - covariate-only PVE): 9.73
+[2026-05-13 15:06:34] Drop-one table:
+         df  Type III SS         LOD        %var      F value Pvalue(Chi2)
+3@29.6    2 279.79773556 4.958520848 9.730379817 11.806803272 1.100219e-05
+F1parent  1   0.06910858 0.001289613 0.002403353  0.005832437 9.385725e-01
+            Pvalue(F)
+3@29.6   1.350272e-05
+F1parent 9.391941e-01
+attr(,"formulas")
+[1] "y ~ F1parent" "y ~ Q1"      
+attr(,"lods")
+[1] 0.01308742 4.97031865 
+[2026-05-13 15:06:34] Effect estimates:
+   Intercept     F1parent      3@29.6a      3@29.6d 
+30.431631077 -0.001613582  1.397960791  1.214285074  
+
+---- addqtl ----
+[2026-05-13 15:06:35] Candidate added QTL:
+    There were no LOD peaks above the threshold. 
+
+---- plots ----
+[2026-05-13 15:06:35] Wrote Manhattan plot PDF: /Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/plots/FNSC_manhattan_plot.pdf
+[2026-05-13 15:06:38] Wrote trait plots PDF: /Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/plots/FNSC_qtl_plots.pdf
+
+---- B-allele direction (nearest marker) ----
+[2026-05-13 15:06:38] QTL 1: chr3@29.6112555610807 marker=Chrom3-14345953
+[2026-05-13 15:06:38] Genotype means:
+       1        2        3 
+28.37281 30.98251 31.17127  
+[2026-05-13 15:06:38] Direction: NA
+[2026-05-13 15:06:38] Trait completed.

@@ -7,7 +7,33 @@ library(qtl)
 ## Set working directory
 setwd("~/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/")
 
-find_qtl_overlaps <- function(dir        = ".",
+## Default overlap input: latest results/peak_intervals/<YYYYMMDD_alpha*>/ (May2026 layout),
+## or results/peak_intervals/ itself if *_peak_intervals.tsv live there (legacy).
+latest_peak_intervals_dir <- function(root = file.path("results", "peak_intervals")) {
+  if (!dir.exists(root)) {
+    return(root)
+  }
+  pat <- "_peak_intervals\\.tsv$"
+  legacy <- list.files(root, pattern = pat, full.names = TRUE)
+  if (length(legacy) > 0) {
+    return(root)
+  }
+  subs <- list.dirs(root, full.names = TRUE, recursive = FALSE)
+  if (length(subs) == 0) {
+    return(root)
+  }
+  has_tsv <- function(d) {
+    length(list.files(d, pattern = pat)) > 0L
+  }
+  ok <- subs[vapply(subs, has_tsv, logical(1L))]
+  if (length(ok) == 0) {
+    return(root)
+  }
+  info <- file.info(ok)
+  ok[[which.max(as.numeric(info$mtime))]]
+}
+
+find_qtl_overlaps <- function(dir        = latest_peak_intervals_dir(),
                               pattern    = "*_peak_intervals.tsv",
                               interval   = "lod_1.5",
                               out_file   = "qtl_overlaps.tsv") {

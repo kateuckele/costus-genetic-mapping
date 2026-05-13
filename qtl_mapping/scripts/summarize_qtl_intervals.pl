@@ -8,25 +8,56 @@ use List::Util qw(max);
 # summarize_qtl_intervals.pl
 #
 # Input:
-#   *_peak_intervals.tsv
-#   qtl_log_<TRAIT>_*.log
+#   *_peak_intervals.tsv under results/peak_intervals/ (or --interval_dir)
+#   qtl_trait_report_<TRAIT>_*.txt (or legacy qtl_log_<TRAIT>_*.log) under --log_dir
 #
 # Output:
 #   one row per QTL, using lod_1.5 intervals, plus refined
 #   peak position and effect estimates from the matching log file.
 #
-# Usage:
+# Usage (from qtl_mapping repo root):
 #   perl summarize_qtl_intervals.pl \
-#     --interval_dir qtl_mapping \
-#     --log_dir qtl_mapping \
-#     --interval lod_1.5|lod_2|bayes
+#     --interval_dir results/peak_intervals \
+#     --log_dir results/trait_qtl_reports \
+#     --interval lod_1.5|lod_2|bayes \
 #     --out qtl_lod15_summary.tsv
+#
+# If --interval_dir is results/peak_intervals and contains no TSVs at the top
+# level, the latest run subfolder (by mtime) from qtl-mapping-May2026.R is used.
 # ------------------------------------------------------------
+
+# Pick latest results/peak_intervals/<run_id>/ when the parent has no flat TSVs.
+sub resolve_peak_intervals_dir {
+    my ($base) = @_;
+    return $base unless defined $base && length $base;
+    return $base unless -d $base;
+    opendir(my $dh, $base) or return $base;
+    my @top = grep { $_ ne "." && $_ ne ".." } readdir($dh);
+    closedir($dh);
+    my @direct = grep {/_peak_intervals.*\.tsv$/} @top;
+    return $base if @direct;
+
+    my ($best, $best_mtime) = (undef, -1);
+    for my $sub (@top) {
+        my $path = "$base/$sub";
+        next unless -d $path;
+        opendir(my $d2, $path) or next;
+        my @tsv = grep {/_peak_intervals.*\.tsv$/} readdir($d2);
+        closedir($d2);
+        next unless @tsv;
+        my $mt = (stat($path))[9] // 0;
+        if ($mt > $best_mtime) {
+            $best_mtime = $mt;
+            $best = $path;
+        }
+    }
+    return defined $best ? $best : $base;
+}
 
 my %args = @ARGV;
 
-my $interval_dir = $args{"--interval_dir"} // ".";
-my $log_dir      = $args{"--log_dir"}      // ".";
+my $interval_dir = resolve_peak_intervals_dir($args{"--interval_dir"} // "results/peak_intervals");
+my $log_dir      = $args{"--log_dir"}      // "results/trait_qtl_reports";
 my $out_file     = $args{"--out"}          // "qtl_lod15_summary.tsv";
 
 my $interval_to_report = $args{"--interval"} // "lod_1.5";
@@ -59,7 +90,7 @@ print $OUT join("\t",
         additive
         dominance
         B_allele_direction
-        log_file
+        trait_report_file
         interval_file
         notes
     )
@@ -77,7 +108,7 @@ foreach my $file (@interval_files) {
     if ($log_file) {
         $log_info = parse_log_file("$log_dir/$log_file");
     } else {
-        warn "No log file found for trait=$trait\n";
+        warn "No trait report file found for trait=$trait\n";
     }
 
     my @qtls = parse_intervals($path, $interval_to_report);
@@ -247,15 +278,16 @@ sub parse_intervals {
 }
 
 # ------------------------------------------------------------
-# Find the most recent matching qtl_log_<TRAIT>_*.log file.
-# If you have multiple logs per trait, this chooses the newest
-# by file modification time.
+# Find the most recent matching trait report for this trait.
+# Accepts qtl_trait_report_<TRAIT>_*.txt or legacy qtl_log_<TRAIT>_*.log.
 # ------------------------------------------------------------
 sub find_matching_log {
     my ($log_dir, $trait) = @_;
 
     opendir(my $dh, $log_dir) or die "Cannot open log_dir '$log_dir': $!\n";
-    my @logs = grep { /^qtl_log_\Q$trait\E_.*\.log$/ } readdir($dh);
+    my @logs = grep {
+        /^(?:qtl_trait_report_|qtl_log_)\Q$trait\E_.*\.(?:txt|log)$/
+    } readdir($dh);
     closedir($dh);
 
     return undef unless @logs;

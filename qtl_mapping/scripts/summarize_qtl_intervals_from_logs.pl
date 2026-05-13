@@ -7,7 +7,8 @@ use File::Basename;
 # summarize_qtl_intervals_from_logs.pl
 #
 # Input:
-#   qtl_log_<TRAIT>_*.log files
+#   qtl_trait_report_<TRAIT>_*.txt (per-trait sink output from qtl-mapping-May2026.R)
+#   Legacy: qtl_log_<TRAIT>_*.log in the same directory is still recognized.
 #
 # Output:
 #   one row per QTL, using intervals printed in the log under:
@@ -17,9 +18,9 @@ use File::Basename;
 #   QTL %var and Pvalue(F), and F1parent %var from:
 #       "refineqtl + refit"
 #
-# Usage:
+# Usage (from qtl_mapping repo root):
 #   perl summarize_qtl_intervals_from_logs.pl \
-#     --log_dir qtl_mapping \
+#     --log_dir results/trait_qtl_reports \
 #     --interval lod_1.5 \
 #     --out qtl_lod15_summary.tsv
 #
@@ -31,7 +32,7 @@ use File::Basename;
 
 my %args = @ARGV;
 
-my $log_dir  = $args{"--log_dir"} // ".";
+my $log_dir  = $args{"--log_dir"} // "results/trait_qtl_reports";
 my $out_file = $args{"--out"}     // "qtl_interval_summary.tsv";
 
 my $interval_to_report = $args{"--interval"} // "lod_1.5";
@@ -40,10 +41,12 @@ die "Invalid --interval '$interval_to_report'. Use lod_1.5, lod_2, or bayes.\n"
     unless $interval_to_report =~ /^(lod_1\.5|lod_2|bayes)$/;
 
 opendir(my $dh, $log_dir) or die "Cannot open log_dir '$log_dir': $!\n";
-my @log_files = sort grep { /^qtl_log_.*\.log$/ } readdir($dh);
+my @log_files = sort grep {
+    /^(?:qtl_trait_report_.*\.txt|qtl_log_.*\.log)$/
+} readdir($dh);
 closedir($dh);
 
-die "No qtl_log_*.log files found in '$log_dir'\n" unless @log_files;
+die "No qtl_trait_report_*.txt or qtl_log_*.log files found in '$log_dir'\n" unless @log_files;
 
 open(my $OUT, ">", $out_file) or die "Cannot write '$out_file': $!\n";
 
@@ -69,7 +72,7 @@ print $OUT join("\t",
         qtl_pve_percent
         qtl_pvalue_f
         f1parent_pve_percent
-        log_file
+        trait_report_file
         notes
     )
 ), "\n";
@@ -154,7 +157,7 @@ foreach my $log_file (@log_files) {
                 $qtl_pve,
                 $qtl_pval_f,
                 $f1_pve,
-                $log_file,
+                $log_file,    # basename of trait report (.txt or legacy .log)
                 join(";", @notes)
             ), "\n";
         }
@@ -519,6 +522,9 @@ sub infer_trait_from_log_name {
     my ($log_file) = @_;
 
     my $trait = $log_file;
+    if ($trait =~ /^qtl_trait_report_(.+)_\d{8}_\d{6}\.txt$/) {
+        return $1;
+    }
     $trait =~ s/^qtl_log_//;
     $trait =~ s/_\d{8}_\d{6}\.log$//;
     $trait =~ s/\.log$//;
