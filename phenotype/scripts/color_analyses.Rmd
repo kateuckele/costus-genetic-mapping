@@ -137,9 +137,13 @@ labellum_spec_sm <- procspec(labellum_spec_avg, opt = "smooth", span = 0.2)
 Scale the spectral data to different reference points for comparative analysis.
 ```{r scale}
 # Scale spectra to both minimum and maximum reflectance
-bract_spec_scalemax <- procspec(bract_spec_sm, opt = c("max"))
-petal_spec_scalemax <- procspec(petal_spec_sm, opt = c("max"))
-labellum_spec_scalemax <- procspec(labellum_spec_sm, opt = c("max"))
+#bract_spec_scalemax <- procspec(bract_spec_sm, opt = c("max"))
+#petal_spec_scalemax <- procspec(petal_spec_sm, opt = c("max"))
+#labellum_spec_scalemax <- procspec(labellum_spec_sm, opt = c("max"))
+
+bract_spec_scalemax <- bract_spec_sm
+petal_spec_scalemax <- petal_spec_sm
+labellum_spec_scalemax <- labellum_spec_sm
 ```
 
 ## Plot Processed Spectra
@@ -1146,9 +1150,9 @@ petal_bee_colspace <- colspace(petal_bee_vis, space = "tri")
 labellum_bee_colspace <- colspace(labellum_bee_vis, space = "tri")
 
 # Plot the Bee Color Space Representation
-plot(bract_bee_colspace, col = spec2rgb(bract_spec_scalemax))
-plot(petal_bee_colspace, col = spec2rgb(petal_spec_scalemax))
-plot(labellum_bee_colspace, col = spec2rgb(labellum_spec_scalemax))
+hexplot(bract_bee_colspace, col = spec2rgb(bract_spec_scalemax))
+hexplot(petal_bee_colspace, col = spec2rgb(petal_spec_scalemax))
+hexplot(labellum_bee_colspace, col = spec2rgb(labellum_spec_scalemax))
 
 # Replace 'x' with '_' in row names
 rownames(bract_bird_colspace) <- gsub("x", "_", rownames(bract_bird_colspace))
