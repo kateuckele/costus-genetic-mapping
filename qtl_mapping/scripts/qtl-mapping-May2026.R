@@ -2,7 +2,8 @@
 ## QTL mapping pipeline (R/qtl): scanone, fitqtl, plots, outputs
 ## Outputs: plots → results/plots; runtime tee logs → results/logs; per-trait transcripts →
 ##   results/trait_qtl_reports/*.txt; peak interval tables →
-##   results/peak_intervals/<YYYYMMDD_alpha*/*.tsv (one subfolder per date×alpha; same day+alpha overwrites)
+##   results/peak_intervals/<YYYYMMDD_alpha*/*.tsv (one subfolder per date×alpha; same day+alpha overwrites);
+##   merged per-QTL table → results/qtl_lod15_summary.tsv (from in-memory fitqtl / refineqtl / lodint, not log parsing)
 ## Permutations: run scripts/generate_scanone_permutations.R first; set perm_file_in below.
 ##
 ## How to run (terminal): from the qtl_mapping directory (the folder that contains scripts/ and results/),
@@ -26,7 +27,7 @@ results_dir <- file.path(qtl_root, "results")
 processed_dir <- file.path(results_dir, "processed_data")
 plot_dir <- file.path(results_dir, "plots")
 log_dir <- file.path(results_dir, "logs")
-## Per-trait sink() transcripts (scanone, fitqtl, etc.): plain text, not runtime logs.
+## Per-trait sink() transcripts (scanone, fitqtl, etc.)
 trait_report_dir <- file.path(results_dir, "trait_qtl_reports")
 peak_intervals_dir <- file.path(results_dir, "peak_intervals")
 for (d in c(results_dir, plot_dir, log_dir, trait_report_dir, peak_intervals_dir)) {
@@ -156,80 +157,126 @@ infer_trait_model <- function(x) {
   "normal"
 }
 
-pick_best_interaction <- function(int_results, alpha = 0.05) {
-  ## Goal: return an interaction term string like "Q1:Q2" or NULL.
+interaction_pvalue_col <- function(sm_df) {
+  cn <- colnames(sm_df)
+  cn_clean <- gsub("[^[:alnum:]]+", "", tolower(cn))
+  candidates <- c(
+    "pvaluef", "pvaluechi2", "pvalue", "pval",
+    "pvalue", "pvalue", "pvalue", "pvalue"
+  )
+  pcol <- cn[match(candidates, cn_clean, nomatch = 0)]
+  pcol <- pcol[pcol != ""]
+  if (length(pcol) < 1) return(NULL)
+  pcol[1]
+}
+
+interaction_var_col <- function(sm_df) {
+  cn <- colnames(sm_df)
+  cn_clean <- gsub("[^[:alnum:]]+", "", tolower(cn))
+  candidates <- c("var", "xvar", "percvar", "pve", "percentvar")
+  vcol <- cn[match(candidates, cn_clean, nomatch = 0)]
+  vcol <- vcol[vcol != ""]
+  if (length(vcol) < 1) return(NULL)
+  vcol[1]
+}
+
+interaction_formula_term <- function(label, qtl_names = NULL, covar_name = NULL) {
+  ## Convert addint row labels such as "2@71.7:4.2.9@20.7" to "Q1:Q2".
+  if (is.null(label) || is.na(label) || !nzchar(label)) return(NULL)
+  
+  if (grepl("^Q\\d+:Q\\d+$", label)) return(label)
+  
+  if (grepl("^\\d+:\\d+$", label)) {
+    parts <- strsplit(label, ":", fixed = TRUE)[[1]]
+    return(paste0("Q", parts[1], ":Q", parts[2]))
+  }
+  
+  parts <- strsplit(label, ":", fixed = TRUE)[[1]]
+  if (length(parts) != 2) return(NULL)
+  
+  mapped <- parts
+  if (!is.null(qtl_names)) {
+    qtl_names <- as.character(qtl_names)
+    for (i in seq_along(parts)) {
+      j <- match(parts[i], qtl_names)
+      if (!is.na(j)) mapped[i] <- paste0("Q", j)
+    }
+  }
+  if (!is.null(covar_name)) {
+    mapped[mapped == covar_name] <- covar_name
+  }
+  
+  covar_allowed <- rep(FALSE, length(mapped))
+  if (!is.null(covar_name)) {
+    covar_allowed <- mapped == covar_name
+  }
+  if (all(grepl("^Q\\d+$", mapped) | covar_allowed)) {
+    return(paste(mapped, collapse = ":"))
+  }
+  
+  NULL
+}
+
+summarize_addint <- function(int_results, alpha = 0.05, qtl_names = NULL, covar_name = NULL) {
   sm <- tryCatch(summary(int_results), error = function(e) NULL)
-  if (is.null(sm)) return(NULL)
+  if (is.null(sm)) {
+    return(list(
+      table = NULL,
+      significant_labels = character(),
+      formula_terms = character(),
+      perc_var = numeric()
+    ))
+  }
   
   sm_df <- as.data.frame(sm)
-  
-  ## Identify columns for p-value and LOD, and optionally QTL indices
-  pcol <- intersect(
-    c("pval", "Pval", "p.value", "P.value", "Pvalue", "pvalue"),
-    colnames(sm_df)
-  )
-  
-  lodcol <- intersect(
-    c("lod", "LOD"),
-    colnames(sm_df)
-  )
-  
-  q1col <- intersect(
-    c("q1", "qtl1", "Q1", "i"),
-    colnames(sm_df)
-  )
-  
-  q2col <- intersect(
-    c("q2", "qtl2", "Q2", "j"),
-    colnames(sm_df)
-  )
-  
-  if (length(pcol) < 1 || length(lodcol) < 1) return(NULL)
-  
-  pcol <- pcol[1]
-  lodcol <- lodcol[1]
+  pcol <- interaction_pvalue_col(sm_df)
+  vcol <- interaction_var_col(sm_df)
+  if (is.null(pcol)) {
+    return(list(
+      table = sm_df,
+      significant_labels = character(),
+      formula_terms = character(),
+      perc_var = numeric()
+    ))
+  }
   
   sig <- sm_df[
     !is.na(sm_df[[pcol]]) & sm_df[[pcol]] <= alpha,
     ,
     drop = FALSE
   ]
-  
-  if (nrow(sig) == 0) return(NULL)
-  
-  best <- sig[which.max(sig[[lodcol]]), , drop = FALSE]
-  
-  ## Prefer explicit q1/q2 columns if they exist; otherwise parse rowname.
-  term <- NULL
-  
-  if (length(q1col) >= 1 && length(q2col) >= 1) {
-    q1 <- as.integer(best[[q1col[1]]])
-    q2 <- as.integer(best[[q2col[1]]])
-    
-    if (!is.na(q1) && !is.na(q2)) {
-      term <- paste0("Q", q1, ":Q", q2)
-    }
+  if (nrow(sig) == 0) {
+    return(list(
+      table = sm_df,
+      significant_labels = character(),
+      formula_terms = character(),
+      perc_var = numeric()
+    ))
   }
   
-  if (is.null(term)) {
-    rn <- rownames(best)
-    
-    if (!is.null(rn) && length(rn) >= 1) {
-      r <- rn[1]
-      
-      ## Common formats: "Q1:Q2" or "1:2"
-      if (grepl("^Q\\d+:Q\\d+$", r)) {
-        term <- r
-      }
-      
-      if (is.null(term) && grepl("^\\d+:\\d+$", r)) {
-        parts <- strsplit(r, ":", fixed = TRUE)[[1]]
-        term <- paste0("Q", parts[1], ":Q", parts[2])
-      }
-    }
+  labels <- rownames(sig)
+  mapped_terms <- character(nrow(sig))
+  for (i in seq_len(nrow(sig))) {
+    mapped_terms[i] <- interaction_formula_term(
+      labels[i],
+      qtl_names = qtl_names,
+      covar_name = covar_name
+    )
+  }
+  mapped_ok <- !is.na(mapped_terms) & nzchar(mapped_terms)
+  formula_terms <- unique(mapped_terms[mapped_ok])
+  
+  perc_var <- rep(NA_real_, length(labels))
+  if (!is.null(vcol) && length(labels) > 0) {
+    perc_var <- suppressWarnings(as.numeric(sig[[vcol]]))
   }
   
-  term
+  list(
+    table = sm_df,
+    significant_labels = labels,
+    formula_terms = formula_terms,
+    perc_var = perc_var
+  )
 }
 
 summarize_fitqtl <- function(fit, alpha = 0.05) {
@@ -258,6 +305,209 @@ summarize_fitqtl <- function(fit, alpha = 0.05) {
   }
   out$significant_terms <- sig
   out
+}
+
+## ---- Per-QTL summary table (lod_1.5 row for karyoplote / tables; built during run_trait) ----
+
+empty_qtl_lod15_rows <- function() {
+  data.frame(
+    trait = character(),
+    qtl_id = character(),
+    chr = character(),
+    interval_type = character(),
+    start_marker = character(),
+    start_pos = numeric(),
+    start_lod = numeric(),
+    peak_marker = character(),
+    peak_pos = numeric(),
+    peak_lod = numeric(),
+    end_marker = character(),
+    end_pos = numeric(),
+    end_lod = numeric(),
+    refined_peak_pos = character(),
+    additive = character(),
+    dominance = character(),
+    B_allele_direction = character(),
+    qtl_pve_percent = numeric(),
+    trait_report_file = character(),
+    interval_file = character(),
+    notes = character(),
+    stringsAsFactors = FALSE
+  )
+}
+
+b_allele_dir_from_additive_string <- function(add_str) {
+  if (is.null(add_str) || !nzchar(as.character(add_str))) {
+    return("")
+  }
+  a <- suppressWarnings(as.numeric(add_str))
+  if (is.na(a)) {
+    return("")
+  }
+  if (a > 0) {
+    return("B_increases_trait")
+  }
+  if (a < 0) {
+    return("B_decreases_trait")
+  }
+  "no_additive_effect"
+}
+
+## Label matching fitqtl drop-one rownames (e.g. "2@46.1")
+qtl_fit_term_label <- function(qobj, i) {
+  if (!is.null(qobj$name) && length(qobj$name) >= i && nzchar(as.character(qobj$name[i]))) {
+    return(as.character(qobj$name[i]))
+  }
+  chr <- as.character(qobj$chr[i])
+  pos <- as.numeric(qobj$pos[i])
+  paste0(chr, "@", sprintf("%.1f", pos))
+}
+
+extract_ad_dom_from_fitqtl <- function(fit, chr, pos) {
+  add <- ""
+  dom <- ""
+  if (is.null(fit) || is.null(fit$ests)) {
+    return(list(add = add, dom = dom))
+  }
+  est <- fit$ests$ests
+  if (is.null(est)) {
+    return(list(add = add, dom = dom))
+  }
+  chr <- as.character(chr)
+  pos <- as.numeric(pos)
+  ra <- paste0(chr, "@", sprintf("%.1f", pos), "a")
+  rd <- paste0(chr, "@", sprintf("%.1f", pos), "d")
+  if (is.matrix(est)) {
+    rn <- rownames(est)
+    if (!is.null(rn)) {
+      if (ra %in% rn) {
+        add <- paste(est[ra, , drop = TRUE], collapse = " ")
+      }
+      if (rd %in% rn) {
+        dom <- paste(est[rd, , drop = TRUE], collapse = " ")
+      }
+    }
+  } else if (length(est)) {
+    nm <- names(est)
+    if (!is.null(nm)) {
+      if (ra %in% nm) {
+        add <- as.character(est[[ra]])
+      }
+      if (rd %in% nm) {
+        dom <- as.character(est[[rd]])
+      }
+    }
+  }
+  list(add = add, dom = dom)
+}
+
+extract_pve_from_result_drop <- function(result_drop, term) {
+  if (is.null(result_drop)) {
+    return(NA_real_)
+  }
+  if (!nrow(result_drop)) {
+    return(NA_real_)
+  }
+  if (!nzchar(term)) {
+    return(NA_real_)
+  }
+  pcol <- intersect(
+    c("%var", "perc.var", "PercentVar", "PVE", "perc.var."),
+    colnames(result_drop)
+  )
+  if (!length(pcol)) {
+    return(NA_real_)
+  }
+  pc <- pcol[[1L]]
+  rn <- rownames(result_drop)
+  if (!is.null(rn) && term %in% rn) {
+    return(suppressWarnings(as.numeric(result_drop[term, pc, drop = TRUE])))
+  }
+  c1 <- result_drop[[1L]]
+  j <- which(as.character(c1) == term)
+  if (length(j) == 1L) {
+    return(suppressWarnings(as.numeric(result_drop[j, pc, drop = TRUE])))
+  }
+  NA_real_
+}
+
+## One row per refined QTL; interval endpoints from scanone lodint (same interval_type as peak TSVs).
+build_qtl_lod15_detail_rows <- function(trait,
+                                         interval_type,
+                                         intervals_df,
+                                         rqtl,
+                                         fit_refined,
+                                         refined_sum,
+                                         interval_file,
+                                         trait_report_file) {
+  out <- empty_qtl_lod15_rows()
+  if (is.null(intervals_df) || !nrow(intervals_df)) {
+    return(out)
+  }
+  if (is.null(rqtl) || !length(rqtl$chr)) {
+    return(out)
+  }
+  rd <- refined_sum$result_drop
+  rows <- list()
+  n <- length(rqtl$chr)
+  for (i in seq_len(n)) {
+    chr <- as.character(rqtl$chr[i])
+    chr_key <- paste0("chr", chr)
+    pos <- as.numeric(rqtl$pos[i])
+    term <- qtl_fit_term_label(rqtl, i)
+    sub <- intervals_df[
+      as.character(intervals_df$chr) == chr_key &
+        as.character(intervals_df$interval) == interval_type,
+      ,
+      drop = FALSE
+    ]
+    notes <- character()
+    if (nrow(sub) < 3L) {
+      notes <- c(
+        notes,
+        sprintf("expected_3_%s_rows_chr_%s_got_%d", interval_type, chr_key, nrow(sub))
+      )
+      next
+    }
+    o <- order(as.numeric(sub$pos))
+    sub <- sub[o, , drop = FALSE]
+    i0 <- 1L
+    i1 <- nrow(sub)
+    ip <- which.max(as.numeric(sub$lod))
+    st <- sub[i0, , drop = FALSE]
+    ed <- sub[i1, , drop = FALSE]
+    pk <- sub[ip, , drop = FALSE]
+    ad <- extract_ad_dom_from_fitqtl(fit_refined, chr, pos)
+    pve <- extract_pve_from_result_drop(rd, term)
+    rows[[length(rows) + 1L]] <- data.frame(
+      trait = trait,
+      qtl_id = paste0("Q", i),
+      chr = chr_key,
+      interval_type = interval_type,
+      start_marker = as.character(st$marker),
+      start_pos = as.numeric(st$pos),
+      start_lod = as.numeric(st$lod),
+      peak_marker = as.character(pk$marker),
+      peak_pos = as.numeric(pk$pos),
+      peak_lod = as.numeric(pk$lod),
+      end_marker = as.character(ed$marker),
+      end_pos = as.numeric(ed$pos),
+      end_lod = as.numeric(ed$lod),
+      refined_peak_pos = as.character(pos),
+      additive = ad$add,
+      dominance = ad$dom,
+      B_allele_direction = b_allele_dir_from_additive_string(ad$add),
+      qtl_pve_percent = pve,
+      trait_report_file = trait_report_file,
+      interval_file = interval_file,
+      notes = paste(notes, collapse = ";"),
+      stringsAsFactors = FALSE
+    )
+  }
+  if (!length(rows)) {
+    return(out)
+  }
+  do.call(rbind, rows)
 }
 
 calculate_covariate_only_pve_fitqtl <- function(cross,
@@ -528,7 +778,8 @@ all_trait_summary <- data.frame(
   best_chr = character(),
   best_pos = numeric(),
   best_lod = numeric(),
-  selected_int = character(),
+  significant_ints = character(),
+  significant_int_pve = character(),
   pve = numeric(),
   covariate_only_pve = numeric(),
   total_qtl_pve = numeric(),
@@ -603,10 +854,13 @@ run_trait <- function(trait_col) {
   best_pos <- NA_real_
   best_lod <- NA_real_
   n_qtl <- 0L
-  selected_int <- NA_character_
+  significant_ints <- NA_character_
+  significant_int_pve <- NA_character_
+  interaction_terms <- NULL
   pve <- NA_real_
   covariate_only_pve <- NA_real_
   total_qtl_pve <- NA_real_
+  qtl_detail_rows <- NULL
 
   if (nrow(scan_summary) > 0) {
     ## Best peak from scanone
@@ -640,20 +894,23 @@ run_trait <- function(trait_col) {
 
     ## 7) test pairwise interactions
     log_section("Interactions (addint)")
-    selected_int <- NULL
-    if (n_qtl > 1) {
-      int_results <- addint(data_prob, pheno.col = trait_col, qtl = qtl, method = "hk", covar = covar_df)
-      log_print(int_results, "addint results:")
-      selected_int <- pick_best_interaction(int_results, alpha = alpha)
-      if (!is.null(selected_int)) log_msg("Selected interaction: ", selected_int)
-      if (is.null(selected_int)) log_msg("No significant interaction selected at alpha=", alpha)
+    int_results <- addint(data_prob, pheno.col = trait_col, qtl = qtl, method = "hk", covar = covar_df)
+    log_print(int_results, "addint results:")
+    int_sum <- summarize_addint(int_results, alpha = alpha, qtl_names = qtl$name, covar_name = covar_name)
+    if (length(int_sum$significant_labels) > 0) {
+      significant_ints <- paste(int_sum$significant_labels, collapse = ", ")
+      significant_int_pve <- paste(signif(int_sum$perc_var, 4), collapse = ", ")
+      interaction_terms <- int_sum$formula_terms
+      log_msg("Significant interactions at alpha=", alpha, ": ", significant_ints)
+      log_msg("Significant interaction % variance explained: ", significant_int_pve)
+      log_msg("Interaction terms included in final model: ", paste(interaction_terms, collapse = ", "))
     } else {
-      log_msg("Only one QTL; skipping addint.")
+      log_msg("No significant interactions at alpha=", alpha)
     }
 
-    ## 8) refit with interaction if selected
-    log_section("Refit (+interaction if selected)")
-    current_formula <- make_formula_with_int(n_qtl, interactions = selected_int, covar_name = covar_name)
+    ## 8) refit with all significant interactions
+    log_section("Refit (+significant interactions)")
+    current_formula <- make_formula_with_int(n_qtl, interactions = interaction_terms, covar_name = covar_name)
     log_msg("Final model formula: ", deparse(current_formula))
     fit_add2 <- fitqtl(
       data_prob, pheno.col = trait_col, qtl = qtl, method = "hk",
@@ -725,6 +982,17 @@ run_trait <- function(trait_col) {
     }
     if (!is.null(refined_sum$result_drop)) log_print(refined_sum$result_drop, "Drop-one table:")
     if (!is.null(refined_sum$ests)) log_print(refined_sum$ests, "Effect estimates:")
+
+    qtl_detail_rows <- build_qtl_lod15_detail_rows(
+      trait = trait_col,
+      interval_type = "lod_1.5",
+      intervals_df = intervals_df,
+      rqtl = rqtl,
+      fit_refined = fit_refined,
+      refined_sum = refined_sum,
+      interval_file = basename(intervals_file),
+      trait_report_file = basename(tl$file)
+    )
 
     ## 10) add one more QTL
     log_section("addqtl")
@@ -822,22 +1090,40 @@ run_trait <- function(trait_col) {
     best_chr = best_chr,
     best_pos = best_pos,
     best_lod = best_lod,
-    selected_int = if (is.null(selected_int)) NA_character_ else selected_int,
+    significant_ints = significant_ints,
+    significant_int_pve = significant_int_pve,
     pve = pve,
     covariate_only_pve = covariate_only_pve,
     total_qtl_pve = total_qtl_pve,
     trait_report_file = tl$file,
     peak_intervals_run_id = peak_intervals_run_id,
-    peak_intervals_run_dir = peak_intervals_run_dir
+    peak_intervals_run_dir = peak_intervals_run_dir,
+    qtl_detail_rows = qtl_detail_rows
   )
 }
 
+all_qtl_lod15 <- empty_qtl_lod15_rows()
+
 for (tr in trait_cols) {
   cat("[", .ts(), "] Running trait: ", tr, "\n", sep = "")
-  row <- run_trait(tr)
-  all_trait_summary <- rbind(all_trait_summary, as.data.frame(row, stringsAsFactors = FALSE))
+  rout <- run_trait(tr)
+  all_trait_summary <- rbind(
+    all_trait_summary,
+    as.data.frame(rout[names(rout) != "qtl_detail_rows"], stringsAsFactors = FALSE)
+  )
+  if (!is.null(rout$qtl_detail_rows) && nrow(rout$qtl_detail_rows) > 0) {
+    all_qtl_lod15 <- rbind(all_qtl_lod15, rout$qtl_detail_rows)
+  }
 }
 
 summary_file <- file.path(getwd(), paste0("qtl_trait_summary_alpha", alpha, "_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".tsv"))
 write.table(all_trait_summary, file = summary_file, sep = "\t", quote = FALSE, row.names = FALSE)
 cat("[", .ts(), "] Wrote cross-trait summary to: ", summary_file, "\n", sep = "")
+
+lod15_file <- file.path(getwd(), "qtl_lod15_summary.tsv")
+if (nrow(all_qtl_lod15) > 0) {
+  write.table(all_qtl_lod15, file = lod15_file, sep = "\t", quote = FALSE, row.names = FALSE)
+  cat("[", .ts(), "] Wrote per-QTL lod summary (", nrow(all_qtl_lod15), " rows): ", lod15_file, "\n", sep = "")
+} else {
+  cat("[", .ts(), "] No qtl_lod15_summary.tsv (no QTL rows accumulated).\n", sep = "")
+}

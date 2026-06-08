@@ -1,5 +1,5 @@
 ## ============================================================
-## Generate scanone() permutation RDS (per-trait EM, n.perm, columns cbind'd)
+## Generate scanone() permutation RDS files (one per trait)
 ## Matches qtl-mapping-May2026.R: same genoprobs, perm_pheno_cols, method="em",
 ## addcovar = F1parent, and per-trait model = "binary" vs "normal" (infer_trait_model).
 ## A single multitrait scanone(..., pheno.col = 1:K) without model= uses normal for all
@@ -16,12 +16,12 @@
 ##   # Or run without tee (messages only on the terminal)
 ##   Rscript scripts/generate_scanone_permutations.R
 ##
-## Output path: set `perm_file_out` below (default is timestamped under
-## results/processed_data/). Then point qtl-mapping-May2026.R `perm_file_in`
-## at that file and keep `perm_pheno_cols` identical in both scripts.
+## Output path: timestamped folder under results/processed_data/, containing
+## one RDS per trait plus a manifest.tsv file. Then point qtl-mapping-May2026.R
+## at that folder after updating it to read per-trait permutation files.
 ##
-## Runtime: one scanone(..., n.perm) per trait (slower than a single multitrait call, but
-## correct null); with snow, each trait still uses n.cluster workers. Often ~30+ minutes
+## Runtime: one scanone(..., n.perm) per trait; with snow, each trait still uses
+## n.cluster workers. Often ~30+ minutes
 ## for 23 traits × 1000 permutations (depends on CPU).
 ## ============================================================
 
@@ -57,14 +57,23 @@ covar_name <- "F1parent"
 perm_n <- 1000L
 perm_n_cluster <- 6L
 
-perm_file_out <- file.path(
+perm_run_id <- paste0("scanone_", perm_n, "perm_by_trait_", format(Sys.time(), "%Y%m%d_%H%M%S"))
+perm_dir_out <- file.path(
   processed_dir,
-  paste0("scanone_", perm_n, "perm_multitrait_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".rds")
+  perm_run_id
 )
+perm_manifest_out <- file.path(perm_dir_out, "manifest.tsv")
 
 .ts <- function() format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 log_msg <- function(...) {
   cat("[", .ts(), "] ", paste0(..., collapse = ""), "\n", sep = "")
+}
+
+safe_filename <- function(x) {
+  x <- gsub("[^A-Za-z0-9_.-]+", "_", x)
+  x <- gsub("^_+|_+$", "", x)
+  if (!nzchar(x)) x <- "trait"
+  x
 }
 
 ## Same rule as qtl-mapping-May2026.R::infer_trait_model
@@ -84,10 +93,11 @@ infer_trait_model <- function(x) {
 }
 
 ## --------------------------- Run ----------------------------
-log_msg("Output RDS: ", perm_file_out)
-if (file.exists(perm_file_out)) {
-  stop("Refusing to overwrite existing file. Delete or rename:\n  ", perm_file_out)
+log_msg("Output directory: ", perm_dir_out)
+if (dir.exists(perm_dir_out)) {
+  stop("Refusing to overwrite existing directory. Delete or rename:\n  ", perm_dir_out)
 }
+dir.create(perm_dir_out, recursive = TRUE, showWarnings = FALSE)
 
 log_msg("Reading cross …")
 cross.data <- read.cross(
@@ -142,11 +152,15 @@ if ("snow" %in% .packages()) {
 }
 
 t0 <- proc.time()
-perm_list <- vector("list", length(perm_cols))
+manifest_rows <- vector("list", length(perm_cols))
 for (j in seq_along(perm_cols)) {
   trait_nm <- perm_cols[j]
   model_j <- infer_trait_model(data_prob_perm$pheno[[j]])
   log_msg("  [", j, "/", length(perm_cols), "] ", trait_nm, " model=", model_j, sep = "")
+  perm_file_j <- file.path(
+    perm_dir_out,
+    sprintf("%02d_%s.rds", j, safe_filename(trait_nm))
+  )
   perm_args <- list(
     cross = data_prob_perm,
     method = "em",
@@ -158,25 +172,28 @@ for (j in seq_along(perm_cols)) {
   if ("snow" %in% .packages()) {
     perm_args$n.cluster <- perm_n_cluster
   }
-  perm_list[[j]] <- do.call(scanone, perm_args)
+  perm_j <- do.call(scanone, perm_args)
+  saveRDS(perm_j, perm_file_j)
+  log_msg("    saved: ", perm_file_j)
+  manifest_rows[[j]] <- data.frame(
+    trait = trait_nm,
+    perm_pheno_col = perm_pheno_cols[j],
+    pheno_col_in_permutation_cross = j,
+    model = model_j,
+    method = "em",
+    n_perm = perm_n,
+    addcovar = covar_name,
+    file = perm_file_j,
+    stringsAsFactors = FALSE
+  )
 }
 
-perm_data <- do.call(cbind, perm_list)
-colnames(perm_data) <- perm_cols
-attr(perm_data, "method") <- "em"
-attr(perm_data, "type") <- attr(perm_list[[1]], "type")
+manifest <- do.call(rbind, manifest_rows)
+write.table(manifest, file = perm_manifest_out, sep = "\t", quote = FALSE, row.names = FALSE)
 
 t1 <- proc.time()
 log_msg("Elapsed: ", signif((t1 - t0)[3], 4), " s")
 
-log_msg("dim(perm_data): ", paste(dim(perm_data), collapse = " x "))
-if (!is.null(colnames(perm_data))) {
-  log_msg("colnames(perm_data): ", paste(head(colnames(perm_data), 8), collapse = ", "), ", …")
-}
-
-cat("\n--- summary(perm_data) ---\n")
-print(summary(perm_data))
-
-saveRDS(perm_data, perm_file_out)
-log_msg("Saved: ", perm_file_out)
-log_msg("Set perm_file_in in qtl-mapping-May2026.R to this path; keep perm_pheno_cols in sync.")
+log_msg("Saved ", nrow(manifest), " per-trait permutation RDS files.")
+log_msg("Manifest: ", perm_manifest_out)
+log_msg("Update qtl-mapping-May2026.R to read this directory/manifest; keep perm_pheno_cols in sync.")
