@@ -1,0 +1,290 @@
+[2026-06-08 16:11:10] Trait report file: /Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/trait_qtl_reports/qtl_trait_report_LABW_20260608_161110.txt
+
+---- Trait run ----
+[2026-06-08 16:11:10] trait=LABW, model=normal (from permutation manifest), alpha=0.05
+[2026-06-08 16:11:10] Individuals: total=495, missing LABW=280, missing F1parent=237
+[2026-06-08 16:11:10] Loading trait permutations: /Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/processed_data/scanone_1000perm_by_trait_20260608_134657/13_LABW.rds
+[2026-06-08 16:11:10] Permutation LOD cutoff at alpha=0.05: 3.781
+
+---- scanone ----
+[2026-06-08 16:11:10] Significant peaks:
+                   chr  pos  lod    pval
+Chrom2-46722257      2 71.7 6.95 0.00000
+Chrom4-8841221   4.2.9 20.7 5.13 0.00200
+Chrom5-120745967     5 31.2 6.34 0.00000
+Chrom6-117495024     6 85.4 4.71 0.00599 
+[2026-06-08 16:11:10] Intervals by chromosome (from scanone output):
+        chr interval           marker       pos      lod
+1      chr2  lod_1.5  Chrom2-34440350 55.602176 5.393278
+2      chr2  lod_1.5  Chrom2-46722257 71.676491 6.945238
+3      chr2  lod_1.5 Chrom2-140744131 97.661359 5.309837
+4      chr2    lod_2  Chrom2-23161770 42.432654 4.140607
+5      chr2    lod_2  Chrom2-46722257 71.676491 6.945238
+6      chr2    lod_2 Chrom2-141263060 98.378507 4.667427
+7      chr2    bayes  Chrom2-34593589 55.941686 5.806639
+8      chr2    bayes  Chrom2-46722257 71.676491 6.945238
+9      chr2    bayes Chrom2-140052013 96.493891 5.300022
+10 chr4.2.9  lod_1.5   Chrom4-5310537 11.811644 3.617462
+11 chr4.2.9  lod_1.5   Chrom4-8841221 20.658929 5.131525
+12 chr4.2.9  lod_1.5  Chrom4-11397134 26.480247 3.368695
+13 chr4.2.9    lod_2   Chrom4-4528833  8.427695 2.981328
+14 chr4.2.9    lod_2   Chrom4-8841221 20.658929 5.131525
+15 chr4.2.9    lod_2  Chrom4-13378985 30.848677 2.929440
+16 chr4.2.9    bayes   Chrom4-5566558 12.985127 3.954965
+17 chr4.2.9    bayes   Chrom4-8841221 20.658929 5.131525
+18 chr4.2.9    bayes  Chrom4-10844391 25.401779 3.925509
+19     chr5  lod_1.5  Chrom5-17491557 19.400292 4.823239
+20     chr5  lod_1.5 Chrom5-120745967 31.212172 6.339339
+21     chr5  lod_1.5 Chrom5-127906088 41.914754 4.365278
+22     chr5    lod_2  Chrom5-14987273 14.775780 4.211325
+23     chr5    lod_2 Chrom5-120745967 31.212172 6.339339
+24     chr5    lod_2 Chrom5-128008071 42.136508 4.109451
+25     chr5    bayes  Chrom5-18913003 20.683885 5.204766
+26     chr5    bayes Chrom5-120745967 31.212172 6.339339
+27     chr5    bayes Chrom5-127748648 41.153404 5.185670
+28     chr6  lod_1.5 Chrom6-105182592 49.568986 2.871457
+29     chr6  lod_1.5 Chrom6-117495024 85.361241 4.710732
+30     chr6  lod_1.5 Chrom6-119424603 89.358283 3.920242
+31     chr6    lod_2 Chrom6-103179896 48.647333 2.485394
+32     chr6    lod_2 Chrom6-117495024 85.361241 4.710732
+33     chr6    lod_2 Chrom6-119424603 89.358283 3.920242
+34     chr6    bayes Chrom6-105337520 49.774543 3.250904
+35     chr6    bayes Chrom6-117495024 85.361241 4.710732
+36     chr6    bayes Chrom6-119424603 89.358283 3.920242 
+[2026-06-08 16:11:10] Wrote intervals table to: /Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/peak_intervals/20260608_alpha0.05/LABW_peak_intervals.tsv
+
+---- makeqtl + fitqtl ----
+[2026-06-08 16:11:10] Initial QTL count: 4
+[2026-06-08 16:11:10] Additive model formula: y ~ Q1 + Q2 + Q3 + Q4 + F1parent
+[2026-06-08 16:11:10] Additive model PVE (if available): 41.72
+[2026-06-08 16:11:10] Significant terms (drop-one table, if available):
+           df Type III SS      LOD      %var   F value Pvalue(Chi2)
+2@71.7      2    154.6009 5.068111  6.682258 11.753388 8.548478e-06
+4.2.9@20.7  2    100.8726 3.368463  4.359981  7.668747 4.280915e-04
+5@31.2      2    209.9062 6.755326  9.072700 15.957922 1.756603e-07
+6@85.4      2    147.1635 4.836492  6.360793 11.187964 1.457162e-05
+F1parent    1    250.2089 7.947546 10.814687 38.043787 1.450464e-09
+              Pvalue(F)
+2@71.7     1.471008e-05
+4.2.9@20.7 6.140579e-04
+5@31.2     3.621386e-07
+6@85.4     2.446026e-05
+F1parent   3.628148e-09 
+[2026-06-08 16:11:10] Drop-one table:
+           df Type III SS      LOD      %var   F value Pvalue(Chi2)
+2@71.7      2    154.6009 5.068111  6.682258 11.753388 8.548478e-06
+4.2.9@20.7  2    100.8726 3.368463  4.359981  7.668747 4.280915e-04
+5@31.2      2    209.9062 6.755326  9.072700 15.957922 1.756603e-07
+6@85.4      2    147.1635 4.836492  6.360793 11.187964 1.457162e-05
+F1parent    1    250.2089 7.947546 10.814687 38.043787 1.450464e-09
+              Pvalue(F)
+2@71.7     1.471008e-05
+4.2.9@20.7 6.140579e-04
+5@31.2     3.621386e-07
+6@85.4     2.446026e-05
+F1parent   3.628148e-09
+attr(,"formulas")
+[1] "y ~ Q2 + Q3 + Q4 + F1parent" "y ~ Q1 + Q3 + Q4 + F1parent"
+[3] "y ~ Q1 + Q2 + Q4 + F1parent" "y ~ Q1 + Q2 + Q3 + F1parent"
+[5] "y ~ Q1 + Q2 + Q3 + Q4"      
+attr(,"lods")
+[1] 20.14235 21.84200 18.45514 20.37397 17.26292 
+
+---- Interactions (addint) ----
+[2026-06-08 16:11:10] addint results:
+Method: Haley-Knott regression 
+Model:  normal phenotype
+Model formula: y ~ Q1 + Q2 + Q3 + Q4 + F1parent 
+
+Add one pairwise interaction at a time table:
+--------------------------------------------
+                    df Type III SS     LOD    %var F value Pvalue(Chi2)
+2@71.7:4.2.9@20.7    4      90.902 3.25885 3.92904  3.6329        0.005
+2@71.7:5@31.2        4       5.691 0.19747 0.24597  0.2130        0.923
+2@71.7:6@85.4        4      63.028 2.23515 2.72423  2.4643        0.036
+2@71.7:F1parent      2       1.678 0.05815 0.07254  0.1265        0.875
+4.2.9@20.7:5@31.2    4      34.000 1.19242 1.46955  1.3000        0.240
+4.2.9@20.7:6@85.4    4      31.574 1.10631 1.36469  1.2050        0.278
+4.2.9@20.7:F1parent  2       7.365 0.25574 0.31835  0.5575        0.555
+5@31.2:6@85.4        4      27.375 0.95767 1.18321  1.0414        0.353
+5@31.2:F1parent      2      14.939 0.52018 0.64570  1.1372        0.302
+6@85.4:F1parent      2      25.917 0.90619 1.12022  1.9894        0.124
+                    Pvalue(F)   
+2@71.7:4.2.9@20.7     0.00691 **
+2@71.7:5@31.2         0.93103   
+2@71.7:6@85.4         0.04615 * 
+2@71.7:F1parent       0.88124   
+4.2.9@20.7:5@31.2     0.27112   
+4.2.9@20.7:6@85.4     0.30968   
+4.2.9@20.7:F1parent   0.57345   
+5@31.2:6@85.4         0.38676   
+5@31.2:F1parent       0.32263   
+6@85.4:F1parent       0.13930   
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+ 
+[2026-06-08 16:11:10] Significant interactions at alpha=0.05: 2@71.7:4.2.9@20.7, 2@71.7:6@85.4
+[2026-06-08 16:11:10] Significant interaction % variance explained: 3.929, 2.724
+[2026-06-08 16:11:10] Interaction terms included in final model: Q1:Q2, Q1:Q4
+
+---- Refit (+significant interactions) ----
+[2026-06-08 16:11:10] Final model formula: y ~ Q1 + Q2 + Q3 + Q4 + Q1:Q2 + Q1:Q4 + F1parent
+[2026-06-08 16:11:10] Final model PVE (if available): 48.12
+[2026-06-08 16:11:10] Significant terms (drop-one table, if available):
+                  df Type III SS       LOD      %var   F value Pvalue(Chi2)
+2@71.7            10   302.54450 10.494497 13.076769  4.965473 5.404612e-07
+4.2.9@20.7         6   197.48265  7.111031  8.535720  5.401931 1.172635e-05
+5@31.2             2   201.92187  7.259067  8.727595 16.570085 5.507228e-08
+6@85.4             6   224.91265  8.018325  9.721317  6.152250 1.820557e-06
+F1parent           1   245.45674  8.686491 10.609286 40.285276 2.536032e-10
+2@71.7:4.2.9@20.7  4    84.91572  3.191233  3.670281  3.484171 5.374694e-03
+                     Pvalue(F)
+2@71.7            2.034305e-06
+4.2.9@20.7        3.438349e-05
+5@31.2            2.231870e-07
+6@85.4            6.232741e-06
+F1parent          1.478693e-09
+2@71.7:4.2.9@20.7 8.942536e-03 
+
+---- refineqtl + refit ----
+pos: 71.67649 20.65893 31.21217 85.36124 
+Iteration 1 
+ Q2 pos: 20.65893 -> 20.65893
+    LOD increase:  0 
+ Q3 pos: 31.21217 -> 31
+    LOD increase:  0.005 
+ Q1 pos: 71.67649 -> 67
+    LOD increase:  1.6 
+ Q4 pos: 85.36124 -> 85.36124
+    LOD increase:  0 
+all pos: 71.67649 20.65893 31.21217 85.36124 -> 67 20.65893 31 85.36124 
+LOD increase at this iteration:  1.605 
+Iteration 2 
+ Q4 pos: 85.36124 -> 85.36124
+    LOD increase:  0 
+ Q1 pos: 67 -> 67
+    LOD increase:  0 
+ Q3 pos: 31 -> 27.13509
+    LOD increase:  0.144 
+ Q2 pos: 20.65893 -> 21
+    LOD increase:  0.088 
+all pos: 67 20.65893 31 85.36124 -> 67 21 27.13509 85.36124 
+LOD increase at this iteration:  0.231 
+Iteration 3 
+ Q2 pos: 21 -> 21
+    LOD increase:  0 
+ Q4 pos: 85.36124 -> 85.36124
+    LOD increase:  0 
+ Q3 pos: 27.13509 -> 27.13509
+    LOD increase:  0 
+ Q1 pos: 67 -> 67
+    LOD increase:  0 
+all pos: 67 21 27.13509 85.36124 -> 67 21 27.13509 85.36124 
+LOD increase at this iteration:  0 
+overall pos: 71.67649 20.65893 31.21217 85.36124 -> 67 21 27.13509 85.36124 
+LOD increase overall:  1.836 
+[2026-06-08 16:11:13] Refined QTL object:
+  QTL object containing genotype probabilities. 
+
+         name   chr    pos n.gen
+Q1     2@67.0     2 67.000     3
+Q2 4.2.9@21.0 4.2.9 21.000     3
+Q3     5@27.1     5 27.135     3
+Q4     6@85.4     6 85.361     3 
+[2026-06-08 16:11:13] Refined full model PVE, covariate + all QTL: 50.12
+
+---- Total QTL PVE ----
+[2026-06-08 16:11:13] Covariate-only model formula: y ~ F1parent
+[2026-06-08 16:11:13] Covariate-only PVE from fitqtl: 7.872
+[2026-06-08 16:11:13] Covariate-only fitqtl full model table:
+       df        SS        MS      LOD     %var Pvalue(Chi2)    Pvalue(F)
+Model   1  182.1353 182.13534 3.828085 7.872369 2.684655e-05 2.989754e-05
+Error 213 2131.4674  10.00689       NA       NA           NA           NA
+Total 214 2313.6028        NA       NA       NA           NA           NA 
+[2026-06-08 16:11:13] Total phenotypic variance explained by all QTL (refined full model PVE - covariate-only PVE): 42.25
+[2026-06-08 16:11:13] Significant terms (drop-one table, if available):
+                  df Type III SS       LOD      %var   F value Pvalue(Chi2)
+2@67.0            10    353.3735 12.471377 15.273732  6.032325 1.105285e-08
+4.2.9@21.0         6    304.4652 10.931486 13.159785  8.662378 4.015572e-09
+5@27.1             2    188.8424  7.075424  8.162267 16.118344 8.405739e-08
+6@85.4             6    195.3641  7.301611  8.444152  5.558331 7.946559e-06
+F1parent           1    220.1436  8.151161  9.515184 37.579999 8.967298e-10
+2@67.0:4.2.9@21.0  4    158.0438  5.992198  6.831070  6.744789 1.506579e-05
+                     Pvalue(F)
+2@67.0            5.604148e-08
+4.2.9@21.0        2.264546e-08
+5@27.1            3.288039e-07
+6@85.4            2.407068e-05
+F1parent          4.702276e-09
+2@67.0:4.2.9@21.0 4.157905e-05 
+[2026-06-08 16:11:13] Drop-one table:
+                  df Type III SS       LOD      %var   F value Pvalue(Chi2)
+2@67.0            10   353.37349 12.471377 15.273732  6.032325 1.105285e-08
+4.2.9@21.0         6   304.46516 10.931486 13.159785  8.662378 4.015572e-09
+5@27.1             2   188.84244  7.075424  8.162267 16.118344 8.405739e-08
+6@85.4             6   195.36415  7.301611  8.444152  5.558331 7.946559e-06
+F1parent           1   220.14355  8.151161  9.515184 37.579999 8.967298e-10
+2@67.0:4.2.9@21.0  4   158.04382  5.992198  6.831070  6.744789 1.506579e-05
+2@67.0:6@85.4      4    48.58427  1.925252  2.099940  2.073416 6.453453e-02
+                     Pvalue(F)
+2@67.0            5.604148e-08
+4.2.9@21.0        2.264546e-08
+5@27.1            3.288039e-07
+6@85.4            2.407068e-05
+F1parent          4.702276e-09
+2@67.0:4.2.9@21.0 4.157905e-05
+2@67.0:6@85.4     8.572362e-02
+attr(,"formulas")
+[1] "y ~ Q2 + Q3 + Q4 + F1parent"                
+[2] "y ~ Q1 + Q3 + Q4 + F1parent + Q1:Q4"        
+[3] "y ~ Q1 + Q2 + Q4 + F1parent + Q1:Q2 + Q1:Q4"
+[4] "y ~ Q1 + Q2 + Q3 + F1parent + Q1:Q2"        
+[5] "y ~ Q1 + Q2 + Q3 + Q4 + Q1:Q2 + Q1:Q4"      
+[6] "y ~ Q1 + Q2 + Q3 + Q4 + F1parent + Q1:Q4"   
+[7] "y ~ Q1 + Q2 + Q3 + Q4 + F1parent + Q1:Q2"   
+attr(,"lods")
+[1] 20.00151 21.54140 25.39746 25.17128 24.32173 26.48069 30.54764 
+[2026-06-08 16:11:13] Effect estimates:
+          Intercept            F1parent             2@67.0a             2@67.0d 
+        29.59624044         -0.09808812          1.63785911          0.22134312 
+        4.2.9@21.0a         4.2.9@21.0d             5@27.1a             5@27.1d 
+         1.17463112         -0.32978005          1.38140291          0.48923465 
+            6@85.4a             6@85.4d 2@67.0a:4.2.9@21.0a 2@67.0d:4.2.9@21.0a 
+         1.16263901         -0.08384749         -0.44363070          1.71885233 
+2@67.0a:4.2.9@21.0d 2@67.0d:4.2.9@21.0d     2@67.0a:6@85.4a     2@67.0d:6@85.4a 
+         1.74173177          0.45645398          0.07898428          0.66892475 
+    2@67.0a:6@85.4d     2@67.0d:6@85.4d 
+         1.13347327         -0.85449754  
+
+---- addqtl ----
+[2026-06-08 16:11:15] Candidate added QTL:
+                 chr  pos  lod     pval
+Chrom2-141111435   2 98.0 4.65 0.005988
+Chrom1-16631397    1 39.1 5.26 0.000998 
+
+---- plots ----
+[2026-06-08 16:11:15] Wrote Manhattan plot PDF: /Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/plots/LABW_manhattan_plot.pdf
+[2026-06-08 16:11:18] Wrote trait plots PDF: /Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/plots/LABW_qtl_plots.pdf
+
+---- B-allele direction (nearest marker) ----
+[2026-06-08 16:11:18] QTL 1: chr2@67 marker=Chrom2-42455342
+[2026-06-08 16:11:18] Genotype means:
+      AA       AB       BB 
+22.39320 23.89346 25.93663  
+[2026-06-08 16:11:18] Direction: B allele increases trait (BB > AA)
+[2026-06-08 16:11:18] QTL 2: chr4.2.9@21 marker=Chrom4-8841221
+[2026-06-08 16:11:18] Genotype means:
+      AA       AB       BB 
+22.84421 24.00422 25.42113  
+[2026-06-08 16:11:18] Direction: B allele increases trait (BB > AA)
+[2026-06-08 16:11:18] QTL 3: chr5@27.1350912774922 marker=Chrom5-110954674
+[2026-06-08 16:11:18] Genotype means:
+      AA       AB       BB 
+22.12348 24.11161 25.23827  
+[2026-06-08 16:11:18] Direction: B allele increases trait (BB > AA)
+[2026-06-08 16:11:18] QTL 4: chr6@85.3612406842891 marker=Chrom6-117495024
+[2026-06-08 16:11:18] Genotype means:
+      AA       AB       BB 
+22.90376 23.77335 25.05631  
+[2026-06-08 16:11:18] Direction: B allele increases trait (BB > AA)
+[2026-06-08 16:11:18] Trait completed.

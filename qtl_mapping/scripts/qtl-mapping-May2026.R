@@ -4,7 +4,7 @@
 ##   results/trait_qtl_reports/*.txt; peak interval tables →
 ##   results/peak_intervals/<YYYYMMDD_alpha*/*.tsv (one subfolder per date×alpha; same day+alpha overwrites);
 ##   merged per-QTL table → results/qtl_lod15_summary.tsv (from in-memory fitqtl / refineqtl / lodint, not log parsing)
-## Permutations: run scripts/generate_scanone_permutations.R first; set perm_file_in below.
+## Permutations: run scripts/generate_scanone_permutations.R first; set perm_dir_in below.
 ##
 ## How to run (terminal): from the qtl_mapping directory (the folder that contains scripts/ and results/),
 ##   mkdir -p results/logs
@@ -36,7 +36,7 @@ for (d in c(results_dir, plot_dir, log_dir, trait_report_dir, peak_intervals_dir
 setwd(results_dir)
 
 ## ----------------------- Configuration -----------------------
-## NULL = all traits in perm_pheno_cols except covar_name; or c("INFA", ...).
+## NULL = all traits in the permutation manifest except covar_name; or c("INFA", ...).
 trait_cols <- NULL
 
 alpha <- 0.05
@@ -49,12 +49,13 @@ cross_phefile <- file.path(qtl_root, "data", "costus_pheno_rqtl_2025Jan24.csv")
 
 covar_name <- "F1parent"
 
-## Must match generate_scanone_permutations.R (same perm_pheno_cols / RDS column order,
-## and per-trait model + addcovar = F1parent used when building the RDS).
-perm_file_in <- file.path(
+## Must match generate_scanone_permutations.R (same perm_pheno_cols, per-trait model,
+## and addcovar = F1parent used when building each per-trait RDS).
+perm_dir_in <- file.path(
   processed_dir,
-  "scanone_1000perm_multitrait_20260513_152510.rds"
+  "scanone_1000perm_by_trait_20260608_134657"
 )
+perm_manifest_in <- file.path(perm_dir_in, "manifest.tsv")
 perm_pheno_cols <- 2:24
 
 ## Interval parameters (reported after scanone)
@@ -94,13 +95,7 @@ start_trait_log <- function(trait_col) {
 }
 
 ## ------------------------ Helpers ---------------------------
-make_add_formula <- function(n_qtl, covar_name = "F1parent") {
-  q_terms <- paste0("Q", seq_len(n_qtl))
-  rhs <- c(q_terms, covar_name)
-  as.formula(paste("y ~", paste(rhs, collapse = " + ")))
-}
-
-make_formula_with_int <- function(n_qtl, interactions = NULL, covar_name = "F1parent") {
+make_qtl_formula <- function(n_qtl, interactions = NULL, covar_name = "F1parent") {
   q_terms <- paste0("Q", seq_len(n_qtl))
   rhs <- c(q_terms, interactions, covar_name)
   as.formula(paste("y ~", paste(rhs, collapse = " + ")))
@@ -110,74 +105,26 @@ safe_has_pheno <- function(cross, pheno_name) {
   !is.null(cross$pheno) && (pheno_name %in% colnames(cross$pheno))
 }
 
-## summary(scanone, perms=...) with addcovar can error on multi-column scanoneperm (rqtl `[` bug).
-## model: use trait_model when supplied so per-column perm matches scanone(..., model=trait_model)
-## after combining per-trait perm RDS (cbind drops a single global model attr).
-perm_column <- function(perm_data, j, model = NULL) {
-  if (!inherits(perm_data, "scanoneperm")) {
-    return(perm_data)
-  }
-  nr <- nrow(perm_data)
-  nc <- ncol(perm_data)
-  if (nc == 1L) {
-    if (!is.null(model)) {
-      out <- perm_data
-      attr(out, "model") <- model
-      return(out)
+resolve_perm_file <- function(file_path, manifest_dir) {
+  if (file.exists(file_path)) return(file_path)
+  alt <- file.path(manifest_dir, file_path)
+  if (file.exists(alt)) return(alt)
+  file_path
+}
+
+permutation_cutoff <- function(perm_obj, alpha) {
+  cutoff_name <- paste0(format(100 * alpha, trim = TRUE, scientific = FALSE), "%")
+  sm <- summary(perm_obj)
+  if (is.null(dim(sm))) {
+    if (!(cutoff_name %in% names(sm))) {
+      stop("Permutation summary has no cutoff named ", cutoff_name, ".")
     }
-    return(perm_data)
+    return(as.numeric(sm[[cutoff_name]]))
   }
-  dn <- dimnames(perm_data)
-  pm <- matrix(as.numeric(perm_data), nrow = nr, ncol = nc, dimnames = dn)
-  m <- pm[, j, drop = FALSE]
-  model_use <- if (!is.null(model)) model else attr(perm_data, "model")
-  structure(
-    m,
-    class = c("scanoneperm", "matrix"),
-    method = attr(perm_data, "method"),
-    model = model_use,
-    type = attr(perm_data, "type")
-  )
-}
-
-infer_trait_model <- function(x) {
-  ## Determine whether to use a binary model for this trait.
-  ## Rule: if all non-missing observed values are in {0, 1}, treat as binary.
-  if (is.factor(x)) x <- as.character(x)
-  if (is.character(x)) {
-    suppressWarnings(xn <- as.numeric(x))
-    if (!all(is.na(xn) == is.na(x))) x <- xn
+  if (!(cutoff_name %in% rownames(sm))) {
+    stop("Permutation summary has no cutoff row named ", cutoff_name, ".")
   }
-
-  x <- x[!is.na(x)]
-  if (length(x) == 0) return("normal")
-
-  ux <- sort(unique(x))
-  if (all(ux %in% c(0, 1))) return("binary")
-  "normal"
-}
-
-interaction_pvalue_col <- function(sm_df) {
-  cn <- colnames(sm_df)
-  cn_clean <- gsub("[^[:alnum:]]+", "", tolower(cn))
-  candidates <- c(
-    "pvaluef", "pvaluechi2", "pvalue", "pval",
-    "pvalue", "pvalue", "pvalue", "pvalue"
-  )
-  pcol <- cn[match(candidates, cn_clean, nomatch = 0)]
-  pcol <- pcol[pcol != ""]
-  if (length(pcol) < 1) return(NULL)
-  pcol[1]
-}
-
-interaction_var_col <- function(sm_df) {
-  cn <- colnames(sm_df)
-  cn_clean <- gsub("[^[:alnum:]]+", "", tolower(cn))
-  candidates <- c("var", "xvar", "percvar", "pve", "percentvar")
-  vcol <- cn[match(candidates, cn_clean, nomatch = 0)]
-  vcol <- vcol[vcol != ""]
-  if (length(vcol) < 1) return(NULL)
-  vcol[1]
+  as.numeric(sm[cutoff_name, 1, drop = TRUE])
 }
 
 interaction_formula_term <- function(label, qtl_names = NULL, covar_name = NULL) {
@@ -229,15 +176,13 @@ summarize_addint <- function(int_results, alpha = 0.05, qtl_names = NULL, covar_
   }
   
   sm_df <- as.data.frame(sm)
-  pcol <- interaction_pvalue_col(sm_df)
-  vcol <- interaction_var_col(sm_df)
-  if (is.null(pcol)) {
-    return(list(
-      table = sm_df,
-      significant_labels = character(),
-      formula_terms = character(),
-      perc_var = numeric()
-    ))
+  pcol <- "Pvalue(F)"
+  vcol <- "%var"
+  if (!(pcol %in% colnames(sm_df))) {
+    stop("addint summary is missing expected interaction p-value column: ", pcol)
+  }
+  if (!(vcol %in% colnames(sm_df))) {
+    stop("addint summary is missing expected interaction variance column: ", vcol)
   }
   
   sig <- sm_df[
@@ -266,10 +211,7 @@ summarize_addint <- function(int_results, alpha = 0.05, qtl_names = NULL, covar_
   mapped_ok <- !is.na(mapped_terms) & nzchar(mapped_terms)
   formula_terms <- unique(mapped_terms[mapped_ok])
   
-  perc_var <- rep(NA_real_, length(labels))
-  if (!is.null(vcol) && length(labels) > 0) {
-    perc_var <- suppressWarnings(as.numeric(sig[[vcol]]))
-  }
+  perc_var <- suppressWarnings(as.numeric(sig[[vcol]]))
   
   list(
     table = sm_df,
@@ -287,24 +229,39 @@ summarize_fitqtl <- function(fit, alpha = 0.05) {
   if (!is.null(fit$ests) && !is.null(fit$ests$ests)) out$ests <- fit$ests$ests
 
   pve <- NA_real_
-  if (!is.null(fit$result.full)) {
-    cn <- colnames(fit$result.full)
-    pve_col <- intersect(c("perc.var", "PVE", "pve", "%var", "PercentVar"), cn)
-    if (length(pve_col) >= 1) pve <- suppressWarnings(as.numeric(fit$result.full[1, pve_col[1]]))
+  if (!is.null(fit$result.full) && "%var" %in% colnames(fit$result.full)) {
+    pve <- suppressWarnings(as.numeric(fit$result.full[1, "%var"]))
   }
   out$pve <- pve
 
-  ## Significant terms from drop-one table
   sig <- NULL
-  if (!is.null(fit$result.drop)) {
-    pcol <- intersect(c("Pvalue", "pvalue", "p.val", "pval", "Pval"), colnames(fit$result.drop))
-    if (length(pcol) >= 1) {
-      pv <- fit$result.drop[[pcol[1]]]
-      sig <- fit$result.drop[!is.na(pv) & pv <= alpha, , drop = FALSE]
-    }
+  if (!is.null(fit$result.drop) && "Pvalue(F)" %in% colnames(fit$result.drop)) {
+    pv <- fit$result.drop[, "Pvalue(F)", drop = TRUE]
+    sig <- fit$result.drop[!is.na(pv) & pv <= alpha, , drop = FALSE]
   }
   out$significant_terms <- sig
   out
+}
+
+log_fit_summary <- function(fit_sum,
+                            pve_label = NULL,
+                            log_significant = TRUE,
+                            log_drop = TRUE,
+                            log_ests = FALSE) {
+  if (!is.null(pve_label) && !is.na(fit_sum$pve)) {
+    log_msg(pve_label, signif(fit_sum$pve, 4))
+  }
+  if (isTRUE(log_significant) &&
+      !is.null(fit_sum$significant_terms) &&
+      nrow(fit_sum$significant_terms) > 0) {
+    log_print(fit_sum$significant_terms, "Significant terms (drop-one table, if available):")
+  }
+  if (isTRUE(log_drop) && !is.null(fit_sum$result_drop)) {
+    log_print(fit_sum$result_drop, "Drop-one table:")
+  }
+  if (isTRUE(log_ests) && !is.null(fit_sum$ests)) {
+    log_print(fit_sum$ests, "Effect estimates:")
+  }
 }
 
 ## ---- Per-QTL summary table (lod_1.5 row for karyoplote / tables; built during run_trait) ----
@@ -334,23 +291,6 @@ empty_qtl_lod15_rows <- function() {
     notes = character(),
     stringsAsFactors = FALSE
   )
-}
-
-b_allele_dir_from_additive_string <- function(add_str) {
-  if (is.null(add_str) || !nzchar(as.character(add_str))) {
-    return("")
-  }
-  a <- suppressWarnings(as.numeric(add_str))
-  if (is.na(a)) {
-    return("")
-  }
-  if (a > 0) {
-    return("B_increases_trait")
-  }
-  if (a < 0) {
-    return("B_decreases_trait")
-  }
-  "no_additive_effect"
 }
 
 ## Label matching fitqtl drop-one rownames (e.g. "2@46.1")
@@ -411,22 +351,13 @@ extract_pve_from_result_drop <- function(result_drop, term) {
   if (!nzchar(term)) {
     return(NA_real_)
   }
-  pcol <- intersect(
-    c("%var", "perc.var", "PercentVar", "PVE", "perc.var."),
-    colnames(result_drop)
-  )
-  if (!length(pcol)) {
+  pc <- "%var"
+  if (!(pc %in% colnames(result_drop))) {
     return(NA_real_)
   }
-  pc <- pcol[[1L]]
   rn <- rownames(result_drop)
   if (!is.null(rn) && term %in% rn) {
     return(suppressWarnings(as.numeric(result_drop[term, pc, drop = TRUE])))
-  }
-  c1 <- result_drop[[1L]]
-  j <- which(as.character(c1) == term)
-  if (length(j) == 1L) {
-    return(suppressWarnings(as.numeric(result_drop[j, pc, drop = TRUE])))
   }
   NA_real_
 }
@@ -435,6 +366,7 @@ extract_pve_from_result_drop <- function(result_drop, term) {
 build_qtl_lod15_detail_rows <- function(trait,
                                          interval_type,
                                          intervals_df,
+                                         b_allele_info,
                                          rqtl,
                                          fit_refined,
                                          refined_sum,
@@ -479,6 +411,8 @@ build_qtl_lod15_detail_rows <- function(trait,
     pk <- sub[ip, , drop = FALSE]
     ad <- extract_ad_dom_from_fitqtl(fit_refined, chr, pos)
     pve <- extract_pve_from_result_drop(rd, term)
+    dir_info <- b_allele_info[[i]]
+    b_allele_direction <- if (is.na(dir_info$direction)) "" else dir_info$direction
     rows[[length(rows) + 1L]] <- data.frame(
       trait = trait,
       qtl_id = paste0("Q", i),
@@ -496,7 +430,7 @@ build_qtl_lod15_detail_rows <- function(trait,
       refined_peak_pos = as.character(pos),
       additive = ad$add,
       dominance = ad$dom,
-      B_allele_direction = b_allele_dir_from_additive_string(ad$add),
+      B_allele_direction = b_allele_direction,
       qtl_pve_percent = pve,
       trait_report_file = trait_report_file,
       interval_file = interval_file,
@@ -652,23 +586,20 @@ infer_b_allele_direction <- function(cross, trait_col, chr, pos) {
     return(list(marker = NA_character_, direction = NA_character_, means = NULL))
   }
 
-  g <- pull.geno(cross, chr)
+  gt_codes <- cross$geno[[as.character(chr)]]$data[, marker]
   y <- pull.pheno(cross, trait_col)
-  ok <- !is.na(g) & !is.na(y)
+  ok <- !is.na(gt_codes) & !is.na(y)
   if (!any(ok)) {
     return(list(marker = marker, direction = NA_character_, means = NULL))
   }
 
-  ## Map genotype codes to labels using cross$geno
-  gt_codes <- cross$geno[[as.character(chr)]]$data[, marker]
-  ## If that fails for any reason, fall back to numeric codes
-  if (is.null(gt_codes)) gt_codes <- g
-
   gt <- gt_codes[ok]
   yy <- y[ok]
 
-  ## Genotype labels as observed (do not rename to AA/AB/BB — order may not match)
   gt_chr <- as.character(gt)
+  if (all(stats::na.omit(gt_chr) %in% c("1", "2", "3"))) {
+    gt_chr <- c(`1` = "AA", `2` = "AB", `3` = "BB")[gt_chr]
+  }
   means <- tapply(yy, gt_chr, mean, na.rm = TRUE)
 
   dir <- NA_character_
@@ -679,6 +610,28 @@ infer_b_allele_direction <- function(cross, trait_col, chr, pos) {
   }
 
   list(marker = marker, direction = dir, means = means)
+}
+
+collect_b_allele_info <- function(cross, trait_col, rqtl, available_chrs = names(cross$geno)) {
+  out <- vector("list", length(rqtl$chr))
+  for (i in seq_along(rqtl$chr)) {
+    chr <- as.character(rqtl$chr[i])
+    pos <- rqtl$pos[i]
+    if (!(chr %in% available_chrs)) {
+      out[[i]] <- list(
+        chr = chr,
+        pos = pos,
+        marker = NA_character_,
+        direction = NA_character_,
+        means = NULL,
+        skipped = TRUE
+      )
+    } else {
+      dir_info <- infer_b_allele_direction(cross, trait_col, chr = chr, pos = pos)
+      out[[i]] <- c(list(chr = chr, pos = pos, skipped = FALSE), dir_info)
+    }
+  }
+  out
 }
 
 ## ===========================
@@ -712,7 +665,7 @@ covar_df <- stats::setNames(
   covar_name
 )
 
-## 3) Permutations (RDS only; build with scripts/generate_scanone_permutations.R)
+## 3) Permutations (one RDS per trait; build with scripts/generate_scanone_permutations.R)
 if (max(perm_pheno_cols) > ncol(data_prob$pheno)) {
   stop(
     "perm_pheno_cols requests column ", max(perm_pheno_cols),
@@ -721,39 +674,48 @@ if (max(perm_pheno_cols) > ncol(data_prob$pheno)) {
 }
 perm_pheno_names <- colnames(data_prob$pheno)[perm_pheno_cols]
 
-if (!file.exists(perm_file_in)) {
-  stop("Permutation RDS not found: ", perm_file_in)
+if (!file.exists(perm_manifest_in)) {
+  stop("Permutation manifest not found: ", perm_manifest_in)
 }
-cat("[", .ts(), "] Loading permutations: ", perm_file_in, "\n", sep = "")
-perm_data <- readRDS(perm_file_in)
-
-perm_nc <- ncol(perm_data)
-if (perm_nc != length(perm_pheno_names)) {
+cat("[", .ts(), "] Loading permutation manifest: ", perm_manifest_in, "\n", sep = "")
+perm_manifest <- read.table(
+  perm_manifest_in,
+  sep = "\t",
+  header = TRUE,
+  stringsAsFactors = FALSE,
+  check.names = FALSE
+)
+required_perm_cols <- c("trait", "perm_pheno_col", "model", "file")
+missing_perm_cols <- setdiff(required_perm_cols, colnames(perm_manifest))
+if (length(missing_perm_cols) > 0) {
+  stop("Permutation manifest missing columns: ", paste(missing_perm_cols, collapse = ", "))
+}
+if (!identical(as.character(perm_manifest$trait), as.character(perm_pheno_names))) {
   stop(
-    "Permutation columns (", perm_nc, ") != length(perm_pheno_cols) (",
-    length(perm_pheno_names), "). Use an RDS built with the same perm_pheno_cols, ",
-    "or regenerate with scripts/generate_scanone_permutations.R."
+    "Permutation manifest traits do not match colnames(data_prob$pheno)[perm_pheno_cols]. ",
+    "Regenerate permutations or fix perm_dir_in / perm_pheno_cols."
   )
 }
-pnc <- colnames(perm_data)
-if (is.null(pnc)) {
-  stop("perm_data has no colnames(); expected one column name per trait in perm_pheno_cols.")
-}
-if (!identical(as.character(pnc), as.character(perm_pheno_names))) {
+if (!identical(as.integer(perm_manifest$perm_pheno_col), as.integer(perm_pheno_cols))) {
   stop(
-    "colnames(perm_data) do not match colnames(data_prob$pheno)[perm_pheno_cols]. ",
-    "Regenerate the RDS or fix perm_pheno_cols / phenotype table order."
+    "Permutation manifest perm_pheno_col values do not match perm_pheno_cols. ",
+    "Regenerate permutations or fix perm_dir_in / perm_pheno_cols."
   )
 }
-
-cat("[", .ts(), "] Permutation matrix: ", nrow(perm_data), " x ", ncol(perm_data),
-    " (traits=", length(perm_pheno_names), ")\n", sep = "")
-
-cutoff_lod_0.10 <- summary(perm_data)[c("10%"), ]
-cutoff_lod_0.05 <- summary(perm_data)[c("5%"), ]
+perm_manifest$file <- vapply(
+  perm_manifest$file,
+  resolve_perm_file,
+  character(1),
+  manifest_dir = dirname(perm_manifest_in)
+)
+missing_perm_files <- perm_manifest$file[!file.exists(perm_manifest$file)]
+if (length(missing_perm_files) > 0) {
+  stop("Permutation RDS file(s) not found:\n  ", paste(missing_perm_files, collapse = "\n  "))
+}
+cat("[", .ts(), "] Per-trait permutation files: ", nrow(perm_manifest), "\n", sep = "")
 
 ## Determine which traits to run
-traits_from_perm_cols <- perm_pheno_names
+traits_from_perm_cols <- perm_manifest$trait
 traits_from_perm_cols <- setdiff(traits_from_perm_cols, covar_name)
 if (is.null(trait_cols)) {
   trait_cols <- traits_from_perm_cols
@@ -775,9 +737,6 @@ all_trait_summary <- data.frame(
   model = character(),
   alpha = numeric(),
   n_qtl = integer(),
-  best_chr = character(),
-  best_pos = numeric(),
-  best_lod = numeric(),
   significant_ints = character(),
   significant_int_pve = character(),
   pve = numeric(),
@@ -797,9 +756,15 @@ run_trait <- function(trait_col) {
   tl <- start_trait_log(trait_col)
   on.exit(tl$close(), add = TRUE)
 
+  j <- match(as.character(trait_col), perm_manifest$trait)
+  if (is.na(j)) {
+    stop("trait ", trait_col, " is not in the permutation manifest.")
+  }
+  perm_row <- perm_manifest[j, , drop = FALSE]
+  trait_model <- as.character(perm_row$model)
+  
   log_section("Trait run")
-  trait_model <- infer_trait_model(data_prob$pheno[[trait_col]])
-  log_msg("trait=", trait_col, ", model=", trait_model, " (auto), alpha=", alpha)
+  log_msg("trait=", trait_col, ", model=", trait_model, " (from permutation manifest), alpha=", alpha)
 
   ## Missingness summary
   n_total <- nind(data_prob)
@@ -807,14 +772,9 @@ run_trait <- function(trait_col) {
   n_miss_covar <- sum(is.na(covar_df[[covar_name]]))
   log_msg("Individuals: total=", n_total, ", missing ", trait_col, "=", n_miss_trait, ", missing ", covar_name, "=", n_miss_covar)
 
-  cutoff_vec <- as.numeric(
-    if (isTRUE(all.equal(alpha, 0.10))) cutoff_lod_0.10 else cutoff_lod_0.05
-  )
-  j <- match(as.character(trait_col), perm_pheno_names)
-  if (is.na(j)) {
-    stop("trait ", trait_col, " is not in perm_pheno_names (perm RDS column set).")
-  }
-  cutoff_trait <- cutoff_vec[j]
+  log_msg("Loading trait permutations: ", perm_row$file)
+  perm_this <- readRDS(perm_row$file)
+  cutoff_trait <- permutation_cutoff(perm_this, alpha = alpha)
   log_msg("Permutation LOD cutoff at alpha=", alpha, ": ", signif(cutoff_trait, 4))
 
   ## 4) scanone
@@ -826,7 +786,6 @@ run_trait <- function(trait_col) {
     addcovar = covar_df[[covar_name]],
     model = trait_model
   )
-  perm_this <- perm_column(perm_data, j, model = trait_model)
   scan_summary <- summary(scan_result, perms = perm_this, alpha = alpha, pvalues = TRUE)
   log_print(scan_summary, "Significant peaks:")
 
@@ -850,9 +809,6 @@ run_trait <- function(trait_col) {
   }
 
   ## Defaults for summary row
-  best_chr <- NA_character_
-  best_pos <- NA_real_
-  best_lod <- NA_real_
   n_qtl <- 0L
   significant_ints <- NA_character_
   significant_int_pve <- NA_character_
@@ -863,12 +819,6 @@ run_trait <- function(trait_col) {
   qtl_detail_rows <- NULL
 
   if (nrow(scan_summary) > 0) {
-    ## Best peak from scanone
-    best_i <- which.max(scan_summary$lod)
-    best_chr <- as.character(scan_summary$chr[best_i])
-    best_pos <- as.numeric(scan_summary$pos[best_i])
-    best_lod <- as.numeric(scan_summary$lod[best_i])
-
     ## 5) initial QTL object
     log_section("makeqtl + fitqtl")
     qtl <- makeqtl(data_prob, chr = scan_summary$chr, pos = scan_summary$pos, what = "prob")
@@ -876,7 +826,7 @@ run_trait <- function(trait_col) {
     log_msg("Initial QTL count: ", n_qtl)
 
     ## 6) additive model
-    current_formula <- make_add_formula(n_qtl, covar_name = covar_name)
+    current_formula <- make_qtl_formula(n_qtl, covar_name = covar_name)
     log_msg("Additive model formula: ", deparse(current_formula))
     fit_add <- fitqtl(
       data_prob, pheno.col = trait_col, qtl = qtl, method = "hk",
@@ -885,12 +835,8 @@ run_trait <- function(trait_col) {
     add_sum <- summarize_fitqtl(fit_add, alpha = alpha)
     if (!is.na(add_sum$pve)) {
       pve <- add_sum$pve
-      log_msg("Additive model PVE (if available): ", signif(pve, 4))
     }
-    if (!is.null(add_sum$significant_terms) && nrow(add_sum$significant_terms) > 0) {
-      log_print(add_sum$significant_terms, "Significant terms (drop-one table, if available):")
-    }
-    if (!is.null(add_sum$result_drop)) log_print(add_sum$result_drop, "Drop-one table:")
+    log_fit_summary(add_sum, pve_label = "Additive model PVE (if available): ")
 
     ## 7) test pairwise interactions
     log_section("Interactions (addint)")
@@ -910,17 +856,14 @@ run_trait <- function(trait_col) {
 
     ## 8) refit with all significant interactions
     log_section("Refit (+significant interactions)")
-    current_formula <- make_formula_with_int(n_qtl, interactions = interaction_terms, covar_name = covar_name)
+    current_formula <- make_qtl_formula(n_qtl, interactions = interaction_terms, covar_name = covar_name)
     log_msg("Final model formula: ", deparse(current_formula))
     fit_add2 <- fitqtl(
       data_prob, pheno.col = trait_col, qtl = qtl, method = "hk",
       get.ests = TRUE, covar = covar_df, formula = current_formula
     )
     add2_sum <- summarize_fitqtl(fit_add2, alpha = alpha)
-    if (!is.na(add2_sum$pve)) log_msg("Final model PVE (if available): ", signif(add2_sum$pve, 4))
-    if (!is.null(add2_sum$significant_terms) && nrow(add2_sum$significant_terms) > 0) {
-      log_print(add2_sum$significant_terms, "Significant terms (drop-one table, if available):")
-    }
+    log_fit_summary(add2_sum, pve_label = "Final model PVE (if available): ", log_drop = FALSE)
 
     ## 9) refine positions
     log_section("refineqtl + refit")
@@ -938,8 +881,13 @@ run_trait <- function(trait_col) {
     
     if (!is.na(refined_sum$pve)) {
       pve <- refined_sum$pve
-      log_msg("Refined full model PVE, covariate + all QTL: ", signif(pve, 4))
     }
+    log_fit_summary(
+      refined_sum,
+      pve_label = "Refined full model PVE, covariate + all QTL: ",
+      log_significant = FALSE,
+      log_drop = FALSE
+    )
     
     ## Calculate covariate-only PVE using fitqtl()
     log_section("Total QTL PVE")
@@ -977,16 +925,21 @@ run_trait <- function(trait_col) {
       log_msg("Could not calculate total QTL PVE because refined full model PVE or covariate-only PVE is NA.")
     }
     
-    if (!is.null(refined_sum$significant_terms) && nrow(refined_sum$significant_terms) > 0) {
-      log_print(refined_sum$significant_terms, "Significant terms (drop-one table, if available):")
-    }
-    if (!is.null(refined_sum$result_drop)) log_print(refined_sum$result_drop, "Drop-one table:")
-    if (!is.null(refined_sum$ests)) log_print(refined_sum$ests, "Effect estimates:")
+    log_fit_summary(refined_sum, pve_label = NULL, log_ests = TRUE)
+
+    available_chrs <- names(data_prob$geno)
+    b_allele_info <- collect_b_allele_info(
+      data_prob,
+      trait_col,
+      rqtl,
+      available_chrs = available_chrs
+    )
 
     qtl_detail_rows <- build_qtl_lod15_detail_rows(
       trait = trait_col,
       interval_type = "lod_1.5",
       intervals_df = intervals_df,
+      b_allele_info = b_allele_info,
       rqtl = rqtl,
       fit_refined = fit_refined,
       refined_sum = refined_sum,
@@ -1021,7 +974,6 @@ run_trait <- function(trait_col) {
     })
     if (isTRUE(ok_pdf)) on.exit(safe_dev_off(), add = TRUE)
 
-    available_chrs <- names(data_prob$geno)
     refined_chrs <- unique(as.character(rqtl$chr))
     if (isTRUE(ok_pdf)) {
       for (chr in refined_chrs) {
@@ -1064,15 +1016,13 @@ run_trait <- function(trait_col) {
 
     ## Log B-allele direction at refined QTL (nearest marker)
     log_section("B-allele direction (nearest marker)")
-    for (i in seq_along(rqtl$chr)) {
-      chr <- as.character(rqtl$chr[i])
-      pos <- rqtl$pos[i]
-      if (!(chr %in% available_chrs)) {
-        log_msg("Skipping B-allele direction: chr not found in cross: ", chr)
+    for (i in seq_along(b_allele_info)) {
+      dir_info <- b_allele_info[[i]]
+      if (isTRUE(dir_info$skipped)) {
+        log_msg("Skipping B-allele direction: chr not found in cross: ", dir_info$chr)
         next
       }
-      dir_info <- infer_b_allele_direction(data_prob, trait_col, chr = chr, pos = pos)
-      log_msg("QTL ", i, ": chr", chr, "@", pos, " marker=", dir_info$marker)
+      log_msg("QTL ", i, ": chr", dir_info$chr, "@", dir_info$pos, " marker=", dir_info$marker)
       if (!is.null(dir_info$means)) {
         log_print(dir_info$means, "Genotype means:")
       }
@@ -1087,9 +1037,6 @@ run_trait <- function(trait_col) {
     model = trait_model,
     alpha = alpha,
     n_qtl = n_qtl,
-    best_chr = best_chr,
-    best_pos = best_pos,
-    best_lod = best_lod,
     significant_ints = significant_ints,
     significant_int_pve = significant_int_pve,
     pve = pve,

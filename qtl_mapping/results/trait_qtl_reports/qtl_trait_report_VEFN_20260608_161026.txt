@@ -1,0 +1,13 @@
+[2026-06-08 16:10:26] Trait report file: /Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/trait_qtl_reports/qtl_trait_report_VEFN_20260608_161026.txt
+
+---- Trait run ----
+[2026-06-08 16:10:26] trait=VEFN, model=binary (from permutation manifest), alpha=0.05
+[2026-06-08 16:10:26] Individuals: total=495, missing VEFN=317, missing F1parent=237
+[2026-06-08 16:10:26] Loading trait permutations: /Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/processed_data/scanone_1000perm_by_trait_20260608_134657/03_VEFN.rds
+[2026-06-08 16:10:26] Permutation LOD cutoff at alpha=0.05: 3.963
+
+---- scanone ----
+[2026-06-08 16:10:26] Significant peaks:
+    There were no LOD peaks above the threshold. 
+[2026-06-08 16:10:26] No significant peaks at alpha=0.05. Ending trait pipeline early.
+[2026-06-08 16:10:26] Trait completed.

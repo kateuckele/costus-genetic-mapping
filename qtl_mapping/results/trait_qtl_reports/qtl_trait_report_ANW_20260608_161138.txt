@@ -1,0 +1,13 @@
+[2026-06-08 16:11:38] Trait report file: /Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/trait_qtl_reports/qtl_trait_report_ANW_20260608_161138.txt
+
+---- Trait run ----
+[2026-06-08 16:11:38] trait=ANW, model=normal (from permutation manifest), alpha=0.05
+[2026-06-08 16:11:38] Individuals: total=495, missing ANW=280, missing F1parent=237
+[2026-06-08 16:11:38] Loading trait permutations: /Users/kathrynuckele/Dropbox/Costus/costus-genetic-mapping/qtl_mapping/results/processed_data/scanone_1000perm_by_trait_20260608_134657/18_ANW.rds
+[2026-06-08 16:11:38] Permutation LOD cutoff at alpha=0.05: 3.72
+
+---- scanone ----
+[2026-06-08 16:11:38] Significant peaks:
+    There were no LOD peaks above the threshold. 
+[2026-06-08 16:11:38] No significant peaks at alpha=0.05. Ending trait pipeline early.
+[2026-06-08 16:11:38] Trait completed.
